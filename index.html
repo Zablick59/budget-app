@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Мой Бюджет</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <meta name="theme-color" content="#f2f2f7">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Мои финансы</h1>
+        </header>
+
+        <section class="accounts-card">
+            <div class="account">
+                <span onclick="editBalance('main')" style="flex:1; cursor:pointer;">Основной</span>
+                <div class="balance-container">
+                    <div class="eye-icon" onclick="toggleVisibility('main', event)" id="eye-main"></div>
+                    <strong onclick="editBalance('main')" style="cursor:pointer;">
+                        <span class="amount" id="amount-main">0</span>
+                        <span class="currency">₽</span>
+                    </strong>
+                </div>
+            </div>
+            <div class="account">
+                <span onclick="editBalance('savings')" style="flex:1; cursor:pointer;">Накопительный</span>
+                <div class="balance-container">
+                    <div class="eye-icon" onclick="toggleVisibility('savings', event)" id="eye-savings"></div>
+                    <strong onclick="editBalance('savings')" style="cursor:pointer;">
+                        <span class="amount" id="amount-savings">0</span>
+                        <span class="currency">₽</span>
+                    </strong>
+                </div>
+            </div>
+            <div class="account">
+                <span onclick="editBalance('grandma')" style="flex:1; cursor:pointer;">Бабушкин</span>
+                <div class="balance-container">
+                    <div class="eye-icon" onclick="toggleVisibility('grandma', event)" id="eye-grandma"></div>
+                    <strong onclick="editBalance('grandma')" style="cursor:pointer;">
+                        <span class="amount" id="amount-grandma">0</span>
+                        <span class="currency">₽</span>
+                    </strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="add-transaction">
+            <div class="tabs">
+                <button class="tab active" data-type="expense">Расход</button>
+                <button class="tab" data-type="income">Доход</button>
+                <button class="tab" data-type="transfer">Перевод</button>
+            </div>
+
+            <form id="transaction-form">
+                <input type="number" id="amount" placeholder="Сумма (₽)" required>
+                
+                <div class="date-controls">
+                    <button type="button" id="date-prev" class="btn-secondary">Вчера</button>
+                    <input type="date" id="tx-date" required>
+                    <button type="button" id="date-next" class="btn-secondary">Завтра</button>
+                </div>
+
+                <div class="form-group" id="from-account-group">
+                    <label id="from-account-label">Откуда:</label>
+                    <select id="from-account">
+                        <option value="main">Основной</option>
+                        <option value="savings">Накопительный</option>
+                        <option value="grandma">Бабушкин</option>
+                    </select>
+                </div>
+
+                <div id="to-account-group" class="form-group" style="display: none;">
+                    <label>Куда:</label>
+                    <select id="to-account">
+                        <option value="savings">Накопительный</option>
+                        <option value="main">Основной</option>
+                        <option value="grandma">Бабушкин</option>
+                    </select>
+                </div>
+
+                <div id="category-group" class="form-group">
+                    <label>Категория:</label>
+                    <div class="category-flex">
+                        <select id="category-select"></select>
+                        <button type="button" id="delete-cat-btn" class="icon-btn">🗑️</button>
+                        <button type="button" id="open-category-modal" class="icon-btn">➕</button>
+                    </div>
+                </div>
+
+                <input type="text" id="comment" placeholder="Комментарий...">
+                <button type="submit" class="submit-btn">Добавить</button>
+            </form>
+        </section>
+
+        <section class="history">
+            <div class="history-header">
+                <h2>История</h2>
+                <select id="history-filter">
+                    <option value="all">Все</option>
+                </select>
+            </div>
+            <ul id="history-list"></ul>
+        </section>
+
+        <div style="margin-top: 30px;">
+            <button type="button" id="download-backup-btn" class="btn-secondary" style="width: 100%; margin-bottom: 12px;">Скачать файл резервной копии</button>
+            <div style="display: flex; gap: 8px;">
+                <input type="file" id="import-file" accept=".json, .txt" style="width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1;">
+                <label for="import-file" class="btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; margin: 0;">Восстановить из файла</label>
+            </div>
+            <p style="font-size: 12px; color: #8e8e93; text-align: center; margin-top: 8px;">Файлы сохраняются в приложение "Файлы" на iPhone</p>
+        </div>
+    </div>
+
+    <div id="category-modal" class="modal">
+        <div class="modal-content">
+            <h3>Новая категория</h3>
+            
+            <div class="cat-preview-wrap">
+                <div id="cat-preview-icon" class="cat-icon" style="width: 60px; height: 60px; font-size: 30px; margin: 0 auto 16px;">📌</div>
+            </div>
+
+            <div class="modal-flex-row">
+                <input type="text" id="new-cat-icon" placeholder="Эмодзи" maxlength="2">
+                <input type="text" id="new-cat-name" placeholder="Название">
+            </div>
+            
+            <label>Цвет:</label>
+            <input type="range" id="hue-slider" min="0" max="360" value="0">
+            
+            <label style="margin-top: 12px;">Недавние цвета:</label>
+            <div class="color-palette" id="recent-colors-palette"></div>
+
+            <div class="modal-buttons">
+                <button type="button" id="cancel-cat-btn" class="btn-secondary">Отмена</button>
+                <button type="button" id="save-cat-btn" class="submit-btn">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <h3>Редактировать</h3>
+            <input type="number" id="edit-amount" placeholder="Сумма" required>
+            <input type="date" id="edit-date" required>
+            
+            <div id="edit-account-from-wrap" class="form-group">
+                <label id="edit-from-account-label">Откуда:</label>
+                <select id="edit-from-account">
+                    <option value="main">Основной</option>
+                    <option value="savings">Накопительный</option>
+                    <option value="grandma">Бабушкин</option>
+                </select>
+            </div>
+            
+            <div id="edit-account-to-wrap" class="form-group">
+                <label>Куда:</label>
+                <select id="edit-to-account">
+                    <option value="main">Основной</option>
+                    <option value="savings">Накопительный</option>
+                    <option value="grandma">Бабушкин</option>
+                </select>
+            </div>
+
+            <div id="edit-category-wrap" class="form-group">
+                <label>Категория:</label>
+                <select id="edit-category-select"></select>
+            </div>
+
+            <input type="text" id="edit-comment" placeholder="Комментарий...">
+            
+            <div class="modal-buttons">
+                <button type="button" id="cancel-edit-btn" class="btn-secondary">Отмена</button>
+                <button type="button" id="delete-tx-btn" class="btn-secondary" style="color: red;">Удалить</button>
+                <button type="button" id="save-edit-btn" class="submit-btn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
