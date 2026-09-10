@@ -2,4 +2,4 @@
 cd "$(dirname "$0")"
 git add .
 git commit -m "Автообновление"
-git push
+git push -u origin main
