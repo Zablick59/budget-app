@@ -741,11 +741,18 @@ function drawDoughnutChart(data, total) {
         const sliceAngle = (item.amount / total) * 2 * Math.PI;
         if (sliceAngle <= 0) return;
 
-        const styles = getStyleForColor(item.color);
+        let strokeColor = '#ccc';
+        if (item.color.startsWith('hsl')) {
+            strokeColor = item.color.replace(')', ', 0.35)').replace('hsl', 'hsla');
+        } else if (item.color.startsWith('#')) {
+            strokeColor = hexToRgbaStr(item.color, 0.35);
+        } else {
+            strokeColor = item.color;
+        }
 
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-        ctx.strokeStyle = styles.border; 
+        ctx.strokeStyle = strokeColor; 
         ctx.lineWidth = lineWidth;
         ctx.stroke();
 
@@ -755,14 +762,19 @@ function drawDoughnutChart(data, total) {
             const textY = centerY + Math.sin(midAngle) * radius;
             const pct = Math.round((item.amount / total) * 100) + '%';
             
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 12px Montserrat';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
             ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
             ctx.shadowBlur = 4;
-            ctx.fillText(pct, textX, textY);
+            
+            ctx.font = '16px sans-serif';
+            ctx.fillText(item.icon, textX, textY - 8);
+            
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 12px Montserrat';
+            ctx.fillText(pct, textX, textY + 10);
+            
             ctx.shadowBlur = 0; 
         }
         
