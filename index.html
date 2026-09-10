@@ -22,37 +22,8 @@
         </header>
 
         <div id="main-view">
-            <section class="accounts-card">
-                <div class="account">
-                    <span onclick="editBalance('main')" style="flex:1; cursor:pointer;">Основной</span>
-                    <div class="balance-container">
-                        <div class="eye-icon" onclick="toggleVisibility('main', event)" id="eye-main"></div>
-                        <strong onclick="editBalance('main')" style="cursor:pointer;">
-                            <span class="amount" id="amount-main">0</span>
-                            <span class="currency">₽</span>
-                        </strong>
-                    </div>
-                </div>
-                <div class="account">
-                    <span onclick="editBalance('savings')" style="flex:1; cursor:pointer;">Накопительный</span>
-                    <div class="balance-container">
-                        <div class="eye-icon" onclick="toggleVisibility('savings', event)" id="eye-savings"></div>
-                        <strong onclick="editBalance('savings')" style="cursor:pointer;">
-                            <span class="amount" id="amount-savings">0</span>
-                            <span class="currency">₽</span>
-                        </strong>
-                    </div>
-                </div>
-                <div class="account">
-                    <span onclick="editBalance('grandma')" style="flex:1; cursor:pointer;">Бабушкин</span>
-                    <div class="balance-container">
-                        <div class="eye-icon" onclick="toggleVisibility('grandma', event)" id="eye-grandma"></div>
-                        <strong onclick="editBalance('grandma')" style="cursor:pointer;">
-                            <span class="amount" id="amount-grandma">0</span>
-                            <span class="currency">₽</span>
-                        </strong>
-                    </div>
-                </div>
+            <section class="accounts-card" id="accounts-list">
+                <!-- Счета генерируются автоматически -->
             </section>
 
             <section class="add-transaction">
@@ -73,20 +44,12 @@
 
                     <div class="form-group" id="from-account-group">
                         <label id="from-account-label">Откуда:</label>
-                        <select id="from-account">
-                            <option value="main">Основной</option>
-                            <option value="savings">Накопительный</option>
-                            <option value="grandma">Бабушкин</option>
-                        </select>
+                        <select id="from-account"></select>
                     </div>
 
                     <div id="to-account-group" class="form-group" style="display: none;">
                         <label>Куда:</label>
-                        <select id="to-account">
-                            <option value="savings">Накопительный</option>
-                            <option value="main">Основной</option>
-                            <option value="grandma">Бабушкин</option>
-                        </select>
+                        <select id="to-account"></select>
                     </div>
 
                     <div id="category-group" class="form-group">
@@ -188,6 +151,22 @@
         </div>
     </nav>
 
+    <!-- Модалка для счетов -->
+    <div id="account-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="account-modal-title">Настройки счета</h3>
+            <div class="modal-flex-row">
+                <input type="text" id="account-name-input" placeholder="Название счета" style="margin-bottom: 0;">
+            </div>
+            <div class="modal-buttons">
+                <button type="button" id="cancel-account-btn" class="btn-secondary">Отмена</button>
+                <button type="button" id="delete-account-btn" class="btn-secondary" style="color: red; display: none;">Удалить</button>
+                <button type="button" id="save-account-btn" class="submit-btn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка для категорий -->
     <div id="category-modal" class="modal">
         <div class="modal-content">
             <h3>Новая категория</h3>
@@ -214,6 +193,7 @@
         </div>
     </div>
 
+    <!-- Модалка редактирования транзакции -->
     <div id="edit-modal" class="modal">
         <div class="modal-content">
             <h3>Редактировать</h3>
@@ -222,20 +202,12 @@
             
             <div id="edit-account-from-wrap" class="form-group">
                 <label id="edit-from-account-label">Откуда:</label>
-                <select id="edit-from-account">
-                    <option value="main">Основной</option>
-                    <option value="savings">Накопительный</option>
-                    <option value="grandma">Бабушкин</option>
-                </select>
+                <select id="edit-from-account"></select>
             </div>
             
             <div id="edit-account-to-wrap" class="form-group">
                 <label>Куда:</label>
-                <select id="edit-to-account">
-                    <option value="main">Основной</option>
-                    <option value="savings">Накопительный</option>
-                    <option value="grandma">Бабушкин</option>
-                </select>
+                <select id="edit-to-account"></select>
             </div>
 
             <div id="edit-category-wrap" class="form-group">

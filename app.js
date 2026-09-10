@@ -8,11 +8,26 @@ let categories = JSON.parse(localStorage.getItem('categories')) || {
         { id: 'cat_i1', name: 'Зарплата', icon: '💰', color: 'hsl(120, 100%, 40%)' }
     ]
 };
-let baseBalances = JSON.parse(localStorage.getItem('baseBalances')) || { main: 0, savings: 0, grandma: 0 };
+
+let accounts = JSON.parse(localStorage.getItem('accounts'));
+if (!accounts) {
+    let oldBase = JSON.parse(localStorage.getItem('baseBalances'));
+    if (oldBase) {
+        accounts = [
+            { id: 'main', name: 'Основной', baseBalance: oldBase.main || 0 },
+            { id: 'savings', name: 'Накопительный', baseBalance: oldBase.savings || 0 },
+            { id: 'grandma', name: 'Бабушкин', baseBalance: oldBase.grandma || 0 }
+        ];
+    } else {
+        accounts = [{ id: 'acc_' + Date.now(), name: 'Основной', baseBalance: 0 }];
+    }
+    localStorage.setItem('accounts', JSON.stringify(accounts));
+}
+
 let recentColors = JSON.parse(localStorage.getItem('recentColors')) || [
     'hsl(0, 100%, 50%)', 'hsl(45, 100%, 50%)', 'hsl(120, 100%, 40%)', 'hsl(210, 100%, 50%)', 'hsl(280, 100%, 50%)'
 ];
-let visibility = JSON.parse(localStorage.getItem('visibility')) || { main: true, savings: true, grandma: true };
+let visibility = JSON.parse(localStorage.getItem('visibility')) || {};
 
 const eyeOpenSVG = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 const eyeClosedSVG = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
@@ -40,6 +55,7 @@ function init() {
         localStorage.setItem('categories', JSON.stringify(categories));
     }
     renderCategories(categorySelect, currentType);
+    renderAccountSelects();
     updatePreviewColor();
     renderRecentColors();
     setCurrentDate();
@@ -108,6 +124,28 @@ tabs.forEach(tab => {
         renderCategories(categorySelect, currentType);
     });
 });
+
+function getAccountName(id) {
+    const acc = accounts.find(a => a.id === id);
+    return acc ? acc.name : 'Удаленный счет';
+}
+
+function renderAccountSelects() {
+    const selects = ['from-account', 'to-account', 'edit-from-account', 'edit-to-account'];
+    selects.forEach(selId => {
+        const el = document.getElementById(selId);
+        if(!el) return;
+        const currentVal = el.value;
+        el.innerHTML = '';
+        accounts.forEach(acc => {
+            const opt = document.createElement('option');
+            opt.value = acc.id;
+            opt.innerText = acc.name;
+            el.appendChild(opt);
+        });
+        if ([...el.options].some(o => o.value === currentVal)) el.value = currentVal;
+    });
+}
 
 function renderHistoryFilter() {
     const filterEl = document.getElementById('history-filter');
@@ -230,6 +268,57 @@ function renderRecentColors() {
     });
 }
 
+// Управление счетами
+let editingAccountId = null;
+const accountModal = document.getElementById('account-modal');
+const accountNameInput = document.getElementById('account-name-input');
+const deleteAccountBtn = document.getElementById('delete-account-btn');
+
+window.openAccountModal = function(id = null) {
+    editingAccountId = id;
+    if (id) {
+        const acc = accounts.find(a => a.id === id);
+        document.getElementById('account-modal-title').innerText = 'Настройки счета';
+        accountNameInput.value = acc.name;
+        deleteAccountBtn.style.display = accounts.length > 1 ? 'block' : 'none';
+    } else {
+        document.getElementById('account-modal-title').innerText = 'Новый счет';
+        accountNameInput.value = '';
+        deleteAccountBtn.style.display = 'none';
+    }
+    accountModal.style.display = 'flex';
+};
+
+document.getElementById('cancel-account-btn').addEventListener('click', () => accountModal.style.display = 'none');
+
+document.getElementById('delete-account-btn').addEventListener('click', () => {
+    if (accounts.length <= 1) return;
+    if (confirm('Удалить этот счет? Транзакции останутся в истории, но будут числиться за удаленным счетом.')) {
+        accounts = accounts.filter(a => a.id !== editingAccountId);
+        localStorage.setItem('accounts', JSON.stringify(accounts));
+        renderAccountSelects();
+        updateUI();
+        accountModal.style.display = 'none';
+    }
+});
+
+document.getElementById('save-account-btn').addEventListener('click', () => {
+    const name = accountNameInput.value.trim();
+    if (!name) return;
+    
+    if (editingAccountId) {
+        const acc = accounts.find(a => a.id === editingAccountId);
+        if (acc) acc.name = name;
+    } else {
+        accounts.push({ id: 'acc_' + Date.now(), name: name, baseBalance: 0 });
+    }
+    
+    localStorage.setItem('accounts', JSON.stringify(accounts));
+    renderAccountSelects();
+    updateUI();
+    accountModal.style.display = 'none';
+});
+
 const categoryModal = document.getElementById('category-modal');
 document.getElementById('open-category-modal').addEventListener('click', () => {
     newCatIconInput.value = '';
@@ -283,59 +372,82 @@ form.addEventListener('submit', (e) => {
     updateUI();
 });
 
-window.editBalance = function(account) {
-    const names = { main: 'Основной', savings: 'Накопительный', grandma: 'Бабушкин' };
+window.editBalance = function(id) {
+    const acc = accounts.find(a => a.id === id);
+    if (!acc) return;
     const currentBalances = calculateBalances();
-    const newVal = prompt(`Введите новый баланс для счета "${names[account]}" (₽):`, currentBalances[account]);
+    const newVal = prompt(`Введите новый баланс для счета "${acc.name}" (₽):`, currentBalances[id]);
     
     if (newVal !== null && newVal.trim() !== '' && !isNaN(parseFloat(newVal))) {
-        const difference = parseFloat(newVal) - currentBalances[account];
-        baseBalances[account] += difference;
-        localStorage.setItem('baseBalances', JSON.stringify(baseBalances));
+        const difference = parseFloat(newVal) - currentBalances[id];
+        acc.baseBalance = (acc.baseBalance || 0) + difference;
+        localStorage.setItem('accounts', JSON.stringify(accounts));
         updateUI();
     }
 };
 
-window.toggleVisibility = function(acc, event) {
+window.toggleVisibility = function(id, event) {
     event.stopPropagation();
-    visibility[acc] = !visibility[acc];
+    visibility[id] = visibility[id] === false ? true : false;
     localStorage.setItem('visibility', JSON.stringify(visibility));
     updateUI();
 };
 
 function calculateBalances() {
-    let balances = { main: baseBalances.main, savings: baseBalances.savings, grandma: baseBalances.grandma };
+    let balances = {};
+    accounts.forEach(a => balances[a.id] = a.baseBalance || 0);
     transactions.forEach(tx => {
-        if (tx.type === 'income') balances[tx.from] += tx.amount;
-        else if (tx.type === 'expense') balances[tx.from] -= tx.amount;
+        if (tx.type === 'income' && balances[tx.from] !== undefined) balances[tx.from] += tx.amount;
+        else if (tx.type === 'expense' && balances[tx.from] !== undefined) balances[tx.from] -= tx.amount;
         else if (tx.type === 'transfer') {
-            balances[tx.from] -= tx.amount;
-            balances[tx.to] += tx.amount;
+            if (balances[tx.from] !== undefined) balances[tx.from] -= tx.amount;
+            if (balances[tx.to] !== undefined) balances[tx.to] += tx.amount;
         }
     });
     return balances;
 }
 
-function updateUI() {
+function renderAccountsList() {
+    const container = document.getElementById('accounts-list');
+    container.innerHTML = '';
     const balances = calculateBalances();
     
-    ['main', 'savings', 'grandma'].forEach(acc => {
-        const amountEl = document.getElementById(`amount-${acc}`);
-        const eyeEl = document.getElementById(`eye-${acc}`);
+    accounts.forEach(acc => {
+        const bal = balances[acc.id];
+        const isVisible = visibility[acc.id] !== false; 
         
-        amountEl.innerText = balances[acc];
+        const accDiv = document.createElement('div');
+        accDiv.className = 'account';
         
-        if (visibility[acc]) {
-            amountEl.classList.remove('blur-text');
-            eyeEl.innerHTML = eyeOpenSVG;
-            eyeEl.style.color = '#000';
-        } else {
-            amountEl.classList.add('blur-text');
-            eyeEl.innerHTML = eyeClosedSVG;
-            eyeEl.style.color = '#8e8e93';
-        }
+        accDiv.innerHTML = `
+            <span onclick="openAccountModal('${acc.id}')" style="flex:1; cursor:pointer;">${acc.name}</span>
+            <div class="balance-container">
+                <div class="eye-icon" onclick="toggleVisibility('${acc.id}', event)">
+                    ${isVisible ? eyeOpenSVG : eyeClosedSVG}
+                </div>
+                <strong onclick="editBalance('${acc.id}')" style="cursor:pointer;">
+                    <span class="amount ${isVisible ? '' : 'blur-text'}">${bal}</span>
+                    <span class="currency">₽</span>
+                </strong>
+            </div>
+        `;
+        container.appendChild(accDiv);
     });
+    
+    const addDiv = document.createElement('div');
+    addDiv.className = 'account';
+    addDiv.style.justifyContent = 'center';
+    addDiv.style.color = '#007aff';
+    addDiv.style.fontWeight = '600';
+    addDiv.style.cursor = 'pointer';
+    addDiv.style.borderBottom = 'none';
+    addDiv.innerText = '+ Добавить счет';
+    addDiv.onclick = () => openAccountModal();
+    container.appendChild(addDiv);
+}
 
+function updateUI() {
+    renderAccountsList();
     renderHistory();
     if (currentView === 'analytics') updateAnalytics();
 }
@@ -471,11 +583,9 @@ function renderHistory() {
         let amountText = tx.type === 'expense' ? `-${tx.amount} ₽` : tx.type === 'income' ? `+${tx.amount} ₽` : `${tx.amount} ₽`;
         let amountClass = tx.type === 'income' ? 'tx-income' : 'tx-expense';
         
-        const accountNames = { main: 'Основной', savings: 'Накопительный', grandma: 'Бабушкин' };
-        
         let accInfo = tx.type === 'transfer' 
-            ? `Из ${accountNames[tx.from]} в ${accountNames[tx.to]}` 
-            : `${accountNames[tx.from]}`;
+            ? `Из ${getAccountName(tx.from)} в ${getAccountName(tx.to)}` 
+            : `${getAccountName(tx.from)}`;
         
         let details = accInfo;
         if (tx.count > 1) {
@@ -680,10 +790,9 @@ function updateAnalytics() {
             let amountText = tx.type === 'expense' ? `-${tx.amount} ₽` : `+${tx.amount} ₽`;
             let amountClass = tx.type === 'income' ? 'tx-income' : 'tx-expense';
 
-            const accountNames = { main: 'Основной', savings: 'Накопительный', grandma: 'Бабушкин' };
             const [y, m, d] = tx.date.split('-');
             
-            let details = `${accountNames[tx.from]} • ${d}.${m}`;
+            let details = `${getAccountName(tx.from)} • ${d}.${m}`;
             if (tx.comment) details += ` • ${tx.comment}`;
 
             li.innerHTML = `
@@ -842,7 +951,7 @@ document.getElementById('download-backup-btn').addEventListener('click', async (
     const backupData = {
         transactions: transactions,
         categories: categories,
-        baseBalances: baseBalances,
+        accounts: accounts,
         recentColors: recentColors,
         visibility: visibility,
         exportDate: new Date().toISOString()
@@ -897,10 +1006,18 @@ document.getElementById('import-file').addEventListener('change', function(e) {
                 categories = importedData.categories;
                 localStorage.setItem('categories', JSON.stringify(categories));
             }
-            if (importedData.baseBalances) {
-                baseBalances = importedData.baseBalances;
-                localStorage.setItem('baseBalances', JSON.stringify(baseBalances));
+            
+            if (importedData.accounts) {
+                accounts = importedData.accounts;
+            } else if (importedData.baseBalances) {
+                accounts = [
+                    { id: 'main', name: 'Основной', baseBalance: importedData.baseBalances.main || 0 },
+                    { id: 'savings', name: 'Накопительный', baseBalance: importedData.baseBalances.savings || 0 },
+                    { id: 'grandma', name: 'Бабушкин', baseBalance: importedData.baseBalances.grandma || 0 }
+                ];
             }
+            localStorage.setItem('accounts', JSON.stringify(accounts));
+            
             if (importedData.recentColors) {
                 recentColors = importedData.recentColors;
                 localStorage.setItem('recentColors', JSON.stringify(recentColors));
@@ -912,6 +1029,7 @@ document.getElementById('import-file').addEventListener('change', function(e) {
             
             alert('Данные успешно восстановлены!');
             renderCategories(categorySelect, currentType);
+            renderAccountSelects();
             updateUI();
             
         } catch (error) {
