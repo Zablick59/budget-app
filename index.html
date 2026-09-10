@@ -13,111 +13,166 @@
     <meta name="theme-color" content="#f2f2f7">
 </head>
 <body>
-    <div class="app-container">
+    <div class="app-container" id="app-container">
         <header>
             <h1>Мои финансы</h1>
         </header>
 
-        <section class="accounts-card">
-            <div class="account">
-                <span onclick="editBalance('main')" style="flex:1; cursor:pointer;">Основной</span>
-                <div class="balance-container">
-                    <div class="eye-icon" onclick="toggleVisibility('main', event)" id="eye-main"></div>
-                    <strong onclick="editBalance('main')" style="cursor:pointer;">
-                        <span class="amount" id="amount-main">0</span>
-                        <span class="currency">₽</span>
-                    </strong>
-                </div>
-            </div>
-            <div class="account">
-                <span onclick="editBalance('savings')" style="flex:1; cursor:pointer;">Накопительный</span>
-                <div class="balance-container">
-                    <div class="eye-icon" onclick="toggleVisibility('savings', event)" id="eye-savings"></div>
-                    <strong onclick="editBalance('savings')" style="cursor:pointer;">
-                        <span class="amount" id="amount-savings">0</span>
-                        <span class="currency">₽</span>
-                    </strong>
-                </div>
-            </div>
-            <div class="account">
-                <span onclick="editBalance('grandma')" style="flex:1; cursor:pointer;">Бабушкин</span>
-                <div class="balance-container">
-                    <div class="eye-icon" onclick="toggleVisibility('grandma', event)" id="eye-grandma"></div>
-                    <strong onclick="editBalance('grandma')" style="cursor:pointer;">
-                        <span class="amount" id="amount-grandma">0</span>
-                        <span class="currency">₽</span>
-                    </strong>
-                </div>
-            </div>
-        </section>
-
-        <section class="add-transaction">
-            <div class="tabs">
-                <button class="tab active" data-type="expense">Расход</button>
-                <button class="tab" data-type="income">Доход</button>
-                <button class="tab" data-type="transfer">Перевод</button>
-            </div>
-
-            <form id="transaction-form">
-                <input type="number" id="amount" placeholder="Сумма (₽)" required>
-                
-                <div class="date-controls">
-                    <button type="button" id="date-prev" class="btn-secondary">Вчера</button>
-                    <input type="date" id="tx-date" required>
-                    <button type="button" id="date-next" class="btn-secondary">Завтра</button>
-                </div>
-
-                <div class="form-group" id="from-account-group">
-                    <label id="from-account-label">Откуда:</label>
-                    <select id="from-account">
-                        <option value="main">Основной</option>
-                        <option value="savings">Накопительный</option>
-                        <option value="grandma">Бабушкин</option>
-                    </select>
-                </div>
-
-                <div id="to-account-group" class="form-group" style="display: none;">
-                    <label>Куда:</label>
-                    <select id="to-account">
-                        <option value="savings">Накопительный</option>
-                        <option value="main">Основной</option>
-                        <option value="grandma">Бабушкин</option>
-                    </select>
-                </div>
-
-                <div id="category-group" class="form-group">
-                    <label>Категория:</label>
-                    <div class="category-flex">
-                        <select id="category-select"></select>
-                        <button type="button" id="delete-cat-btn" class="icon-btn">🗑️</button>
-                        <button type="button" id="open-category-modal" class="icon-btn">➕</button>
+        <div id="main-view">
+            <section class="accounts-card">
+                <div class="account">
+                    <span onclick="editBalance('main')" style="flex:1; cursor:pointer;">Основной</span>
+                    <div class="balance-container">
+                        <div class="eye-icon" onclick="toggleVisibility('main', event)" id="eye-main"></div>
+                        <strong onclick="editBalance('main')" style="cursor:pointer;">
+                            <span class="amount" id="amount-main">0</span>
+                            <span class="currency">₽</span>
+                        </strong>
                     </div>
                 </div>
+                <div class="account">
+                    <span onclick="editBalance('savings')" style="flex:1; cursor:pointer;">Накопительный</span>
+                    <div class="balance-container">
+                        <div class="eye-icon" onclick="toggleVisibility('savings', event)" id="eye-savings"></div>
+                        <strong onclick="editBalance('savings')" style="cursor:pointer;">
+                            <span class="amount" id="amount-savings">0</span>
+                            <span class="currency">₽</span>
+                        </strong>
+                    </div>
+                </div>
+                <div class="account">
+                    <span onclick="editBalance('grandma')" style="flex:1; cursor:pointer;">Бабушкин</span>
+                    <div class="balance-container">
+                        <div class="eye-icon" onclick="toggleVisibility('grandma', event)" id="eye-grandma"></div>
+                        <strong onclick="editBalance('grandma')" style="cursor:pointer;">
+                            <span class="amount" id="amount-grandma">0</span>
+                            <span class="currency">₽</span>
+                        </strong>
+                    </div>
+                </div>
+            </section>
 
-                <input type="text" id="comment" placeholder="Комментарий...">
-                <button type="submit" class="submit-btn">Добавить</button>
-            </form>
-        </section>
+            <section class="add-transaction">
+                <div class="tabs">
+                    <button class="tab active" data-type="expense">Расход</button>
+                    <button class="tab" data-type="income">Доход</button>
+                    <button class="tab" data-type="transfer">Перевод</button>
+                </div>
 
-        <section class="history">
-            <div class="history-header">
-                <h2>История</h2>
-                <select id="history-filter">
-                    <option value="all">Все</option>
-                </select>
+                <form id="transaction-form">
+                    <input type="number" id="amount" placeholder="Сумма (₽)" required>
+                    
+                    <div class="date-controls">
+                        <button type="button" id="date-prev" class="btn-secondary">Вчера</button>
+                        <input type="date" id="tx-date" required>
+                        <button type="button" id="date-next" class="btn-secondary">Завтра</button>
+                    </div>
+
+                    <div class="form-group" id="from-account-group">
+                        <label id="from-account-label">Откуда:</label>
+                        <select id="from-account">
+                            <option value="main">Основной</option>
+                            <option value="savings">Накопительный</option>
+                            <option value="grandma">Бабушкин</option>
+                        </select>
+                    </div>
+
+                    <div id="to-account-group" class="form-group" style="display: none;">
+                        <label>Куда:</label>
+                        <select id="to-account">
+                            <option value="savings">Накопительный</option>
+                            <option value="main">Основной</option>
+                            <option value="grandma">Бабушкин</option>
+                        </select>
+                    </div>
+
+                    <div id="category-group" class="form-group">
+                        <label>Категория:</label>
+                        <div class="category-flex">
+                            <select id="category-select"></select>
+                            <button type="button" id="delete-cat-btn" class="icon-btn">🗑️</button>
+                            <button type="button" id="open-category-modal" class="icon-btn">➕</button>
+                        </div>
+                    </div>
+
+                    <input type="text" id="comment" placeholder="Комментарий...">
+                    <button type="submit" class="submit-btn">Добавить</button>
+                </form>
+            </section>
+
+            <section class="history">
+                <div class="history-header">
+                    <h2>История</h2>
+                    <select id="history-filter">
+                        <option value="all">Все</option>
+                    </select>
+                </div>
+                <ul id="history-list"></ul>
+            </section>
+
+            <div style="margin-top: 30px;">
+                <button type="button" id="download-backup-btn" class="btn-secondary" style="width: 100%; margin-bottom: 12px;">Скачать файл резервной копии</button>
+                <div style="display: flex; gap: 8px;">
+                    <input type="file" id="import-file" accept=".json, .txt" style="width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1;">
+                    <label for="import-file" class="btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; margin: 0;">Восстановить из файла</label>
+                </div>
+                <p style="font-size: 12px; color: #8e8e93; text-align: center; margin-top: 8px;">Файлы сохраняются в приложение "Файлы" на iPhone</p>
             </div>
-            <ul id="history-list"></ul>
-        </section>
+        </div>
 
-        <div style="margin-top: 30px;">
-            <button type="button" id="download-backup-btn" class="btn-secondary" style="width: 100%; margin-bottom: 12px;">Скачать файл резервной копии</button>
-            <div style="display: flex; gap: 8px;">
-                <input type="file" id="import-file" accept=".json, .txt" style="width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1;">
-                <label for="import-file" class="btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; margin: 0;">Восстановить из файла</label>
+        <div id="analytics-view" style="display: none;">
+            <div class="tabs" style="margin-bottom: 16px;">
+                <button class="tab analytics-type-tab active" data-type="expense">Расходы</button>
+                <button class="tab analytics-type-tab" data-type="income">Доходы</button>
             </div>
-            <p style="font-size: 12px; color: #8e8e93; text-align: center; margin-top: 8px;">Файлы сохраняются в приложение "Файлы" на iPhone</p>
+            
+            <div class="tabs" style="margin-bottom: 24px;">
+                <button class="tab analytics-period-tab" data-period="day">День</button>
+                <button class="tab analytics-period-tab" data-period="week">Неделя</button>
+                <button class="tab analytics-period-tab active" data-period="month">Месяц</button>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="analytics-chart" width="220" height="220"></canvas>
+                <div class="chart-center-text">
+                    <span id="analytics-total-sum">0</span>
+                    <span style="font-size: 14px; font-weight: 600; color: #8e8e93;">₽</span>
+                </div>
+            </div>
+
+            <div class="analytics-stats">
+                <div class="stat-card">
+                    <span class="stat-label">Максимум</span>
+                    <strong class="stat-value" id="stat-max">-</strong>
+                    <span class="stat-sub" id="stat-max-cat"></span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Минимум</span>
+                    <strong class="stat-value" id="stat-min">-</strong>
+                    <span class="stat-sub" id="stat-min-cat"></span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Частая</span>
+                    <strong class="stat-value" id="stat-freq">-</strong>
+                    <span class="stat-sub" id="stat-freq-count"></span>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 700;">Детализация</h3>
+            <ul id="analytics-categories-list" class="analytics-list"></ul>
         </div>
     </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" id="nav-main" onclick="switchView('main')">
+            <div class="nav-icon">💳</div>
+            <span>Главная</span>
+        </div>
+        <div class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
+            <div class="nav-icon">📊</div>
+            <span>Аналитика</span>
+        </div>
+    </nav>
 
     <div id="category-modal" class="modal">
         <div class="modal-content">

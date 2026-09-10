@@ -21,8 +21,12 @@ let selectedColor = 'hsl(0, 100%, 50%)';
 let currentType = 'expense';
 let editingTxId = null;
 
+let currentView = 'main';
+let analyticsType = 'expense';
+let analyticsPeriod = 'month';
+
 const form = document.getElementById('transaction-form');
-const tabs = document.querySelectorAll('.tab');
+const tabs = document.querySelectorAll('.add-transaction .tab');
 const categorySelect = document.getElementById('category-select');
 const dateInput = document.getElementById('tx-date');
 const fromAccountLabel = document.getElementById('from-account-label');
@@ -41,6 +45,35 @@ function init() {
     setCurrentDate();
     updateUI();
 }
+
+function switchView(view) {
+    currentView = view;
+    document.getElementById('main-view').style.display = view === 'main' ? 'block' : 'none';
+    document.getElementById('analytics-view').style.display = view === 'analytics' ? 'block' : 'none';
+    
+    document.getElementById('nav-main').classList.toggle('active', view === 'main');
+    document.getElementById('nav-analytics').classList.toggle('active', view === 'analytics');
+    
+    if (view === 'analytics') updateAnalytics();
+}
+
+document.querySelectorAll('.analytics-type-tab').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.analytics-type-tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        analyticsType = e.target.dataset.type;
+        updateAnalytics();
+    });
+});
+
+document.querySelectorAll('.analytics-period-tab').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.analytics-period-tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        analyticsPeriod = e.target.dataset.period;
+        updateAnalytics();
+    });
+});
 
 function setCurrentDate() {
     const d = new Date();
@@ -304,6 +337,7 @@ function updateUI() {
     });
 
     renderHistory();
+    if (currentView === 'analytics') updateAnalytics();
 }
 
 const daysOfWeek = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
@@ -465,6 +499,158 @@ function renderHistory() {
             </div>
         `;
         list.appendChild(li);
+    });
+}
+
+function isDateInAnalyticsPeriod(dateStr, period) {
+    const txDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    txDate.setHours(0,0,0,0);
+
+    if (period === 'day') {
+        return txDate.getTime() === today.getTime();
+    } else if (period === 'week') {
+        const day = today.getDay() || 7;
+        const mon = new Date(today);
+        mon.setDate(mon.getDate() - day + 1);
+        const sun = new Date(today);
+        sun.setDate(sun.getDate() - day + 7);
+        return txDate >= mon && txDate <= sun;
+    } else if (period === 'month') {
+        return txDate.getMonth() === today.getMonth() && txDate.getFullYear() === today.getFullYear();
+    }
+    return true;
+}
+
+function updateAnalytics() {
+    let txs = transactions.filter(t => t.type === analyticsType && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
+    
+    let catSums = {};
+    let catCounts = {};
+    
+    let maxTx = null;
+    let minTx = null;
+
+    txs.forEach(t => {
+        catSums[t.categoryId] = (catSums[t.categoryId] || 0) + t.amount;
+        catCounts[t.categoryId] = (catCounts[t.categoryId] || 0) + 1;
+        
+        if (!maxTx || t.amount > maxTx.amount) maxTx = t;
+        if (!minTx || t.amount < minTx.amount) minTx = t;
+    });
+
+    let totalSum = Object.values(catSums).reduce((a, b) => a + b, 0);
+    document.getElementById('analytics-total-sum').innerText = totalSum;
+
+    let mostFreqCatId = null;
+    let maxFreq = 0;
+    for (const [catId, count] of Object.entries(catCounts)) {
+        if (count > maxFreq) {
+            maxFreq = count;
+            mostFreqCatId = catId;
+        }
+    }
+
+    const typeCats = categories[analyticsType] || [];
+    
+    const getCatName = (id) => {
+        const c = typeCats.find(c => c.id === id);
+        return c ? c.name : 'Неизвестно';
+    };
+
+    document.getElementById('stat-max').innerText = maxTx ? maxTx.amount + ' ₽' : '-';
+    document.getElementById('stat-max-cat').innerText = maxTx ? getCatName(maxTx.categoryId) : '';
+    
+    document.getElementById('stat-min').innerText = minTx ? minTx.amount + ' ₽' : '-';
+    document.getElementById('stat-min-cat').innerText = minTx ? getCatName(minTx.categoryId) : '';
+    
+    document.getElementById('stat-freq').innerText = mostFreqCatId ? getCatName(mostFreqCatId) : '-';
+    document.getElementById('stat-freq-count').innerText = maxFreq > 0 ? `${maxFreq} ${getTxWord(maxFreq)}` : '';
+
+    const listEl = document.getElementById('analytics-categories-list');
+    listEl.innerHTML = '';
+    
+    let sortedCats = Object.entries(catSums).map(([id, amount]) => {
+        const cat = typeCats.find(c => c.id === id) || { name: 'Удалено', icon: '❓', color: '#8E8E93' };
+        return { ...cat, amount };
+    }).sort((a, b) => b.amount - a.amount);
+
+    drawDoughnutChart(sortedCats, totalSum);
+
+    sortedCats.forEach(item => {
+        const li = document.createElement('li');
+        const styles = getStyleForColor(item.color);
+        const pct = totalSum > 0 ? Math.round((item.amount / totalSum) * 100) : 0;
+        
+        li.innerHTML = `
+            <div class="cat-icon" style="background-color: ${styles.bg}; color: ${item.color}; ${styles.border}">
+                ${item.icon}
+            </div>
+            <div class="tx-info">
+                <div class="tx-header">
+                    <span>${item.name}</span>
+                    <span style="color: #000;">${item.amount} ₽</span>
+                </div>
+                <div class="tx-details">Доля: ${pct}%</div>
+            </div>
+        `;
+        listEl.appendChild(li);
+    });
+    
+    if (sortedCats.length === 0) {
+        listEl.innerHTML = '<li style="justify-content: center; color: #8e8e93; font-size: 14px;">Нет данных за этот период</li>';
+    }
+}
+
+function drawDoughnutChart(data, total) {
+    const canvas = document.getElementById('analytics-chart');
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = 70;
+    const lineWidth = 36;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (total === 0 || data.length === 0) {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#e5e5ea';
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        return;
+    }
+
+    let startAngle = -0.5 * Math.PI;
+    
+    data.forEach(item => {
+        const sliceAngle = (item.amount / total) * 2 * Math.PI;
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+        ctx.strokeStyle = item.color;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        
+        if (sliceAngle > 0.4) {
+            const midAngle = startAngle + sliceAngle / 2;
+            const textX = centerX + Math.cos(midAngle) * radius;
+            const textY = centerY + Math.sin(midAngle) * radius;
+            const pct = Math.round((item.amount / total) * 100) + '%';
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Montserrat';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 4;
+            ctx.fillText(pct, textX, textY);
+            ctx.shadowBlur = 0; 
+        }
+        
+        startAngle += sliceAngle;
     });
 }
 
