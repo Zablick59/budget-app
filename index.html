@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Мой Бюджет</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -133,7 +136,7 @@
             </div>
 
             <div class="chart-container">
-                <canvas id="analytics-chart" width="220" height="220"></canvas>
+                <canvas id="analytics-chart"></canvas>
                 <div class="chart-center-text">
                     <span id="analytics-total-sum">0</span>
                     <span style="font-size: 14px; font-weight: 600; color: #8e8e93;">₽</span>
@@ -159,6 +162,17 @@
             </div>
 
             <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 700;">Детализация</h3>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <select id="analytics-cat-filter" style="flex: 1; margin-bottom: 0; height: 36px; padding: 0 10px; font-size: 14px; background: #e5e5ea; border: none; border-radius: 8px; font-weight: 600; outline: none;">
+                    <option value="all">Все категории</option>
+                </select>
+                <select id="analytics-sort" style="flex: 1; margin-bottom: 0; height: 36px; padding: 0 10px; font-size: 14px; background: #e5e5ea; border: none; border-radius: 8px; font-weight: 600; outline: none;">
+                    <option value="desc">Сначала большие</option>
+                    <option value="asc">Сначала маленькие</option>
+                </select>
+            </div>
+
             <ul id="analytics-categories-list" class="analytics-list"></ul>
         </div>
     </div>

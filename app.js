@@ -46,7 +46,7 @@ function init() {
     updateUI();
 }
 
-function switchView(view) {
+window.switchView = function(view) {
     currentView = view;
     document.getElementById('main-view').style.display = view === 'main' ? 'block' : 'none';
     document.getElementById('analytics-view').style.display = view === 'analytics' ? 'block' : 'none';
@@ -55,7 +55,7 @@ function switchView(view) {
     document.getElementById('nav-analytics').classList.toggle('active', view === 'analytics');
     
     if (view === 'analytics') updateAnalytics();
-}
+};
 
 document.querySelectorAll('.analytics-type-tab').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -523,22 +523,86 @@ function isDateInAnalyticsPeriod(dateStr, period) {
     return true;
 }
 
+document.getElementById('analytics-cat-filter').addEventListener('change', updateAnalytics);
+document.getElementById('analytics-sort').addEventListener('change', updateAnalytics);
+
+let lastAnalyticsType = null;
+let lastIsSingleCat = null;
+
 function updateAnalytics() {
-    let txs = transactions.filter(t => t.type === analyticsType && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
+    const catFilterEl = document.getElementById('analytics-cat-filter');
+    const sortEl = document.getElementById('analytics-sort');
+
+    if (lastAnalyticsType !== analyticsType) {
+        const currentCats = categories[analyticsType] || [];
+        const oldCatVal = catFilterEl.value;
+        catFilterEl.innerHTML = '<option value="all">Все категории</option>';
+        currentCats.forEach(c => {
+            catFilterEl.innerHTML += `<option value="${c.id}">${c.icon} ${c.name}</option>`;
+        });
+        if ([...catFilterEl.options].some(o => o.value === oldCatVal)) {
+            catFilterEl.value = oldCatVal;
+        } else {
+            catFilterEl.value = 'all';
+        }
+        lastAnalyticsType = analyticsType;
+    }
+
+    const isSingleCat = catFilterEl.value !== 'all';
+
+    if (lastIsSingleCat !== isSingleCat) {
+        const oldSort = sortEl.value;
+        sortEl.innerHTML = `
+            <option value="desc">Сначала большие</option>
+            <option value="asc">Сначала маленькие</option>
+            ${isSingleCat ? '<option value="date-desc">Сначала новые</option>' : ''}
+        `;
+        if ([...sortEl.options].some(o => o.value === oldSort)) sortEl.value = oldSort;
+        else sortEl.value = 'desc';
+        lastIsSingleCat = isSingleCat;
+    }
+
+    const catFilterVal = catFilterEl.value;
+    const sortVal = sortEl.value;
+
+    let periodTxs = transactions.filter(t => t.type === analyticsType && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
     
     let catSums = {};
     let catCounts = {};
-    
     let maxTx = null;
     let minTx = null;
 
-    txs.forEach(t => {
+    periodTxs.forEach(t => {
         catSums[t.categoryId] = (catSums[t.categoryId] || 0) + t.amount;
         catCounts[t.categoryId] = (catCounts[t.categoryId] || 0) + 1;
         
         if (!maxTx || t.amount > maxTx.amount) maxTx = t;
         if (!minTx || t.amount < minTx.amount) minTx = t;
     });
+
+    const typeCats = categories[analyticsType] || [];
+    const getCatName = (id) => {
+        const c = typeCats.find(c => c.id === id);
+        return c ? c.name : 'Удалено';
+    };
+
+    let filteredTxs = periodTxs;
+    if (isSingleCat) {
+        filteredTxs = periodTxs.filter(t => t.categoryId === catFilterVal);
+        
+        catSums = {};
+        catCounts = {};
+        maxTx = null;
+        minTx = null;
+        
+        filteredTxs.forEach(t => {
+            catSums[t.categoryId] = (catSums[t.categoryId] || 0) + t.amount;
+            catCounts[t.categoryId] = (catCounts[t.categoryId] || 0) + 1;
+            
+            if (!maxTx || t.amount > maxTx.amount) maxTx = t;
+            if (!minTx || t.amount < minTx.amount) minTx = t;
+        });
+    }
 
     let totalSum = Object.values(catSums).reduce((a, b) => a + b, 0);
     document.getElementById('analytics-total-sum').innerText = totalSum;
@@ -552,13 +616,6 @@ function updateAnalytics() {
         }
     }
 
-    const typeCats = categories[analyticsType] || [];
-    
-    const getCatName = (id) => {
-        const c = typeCats.find(c => c.id === id);
-        return c ? c.name : 'Неизвестно';
-    };
-
     document.getElementById('stat-max').innerText = maxTx ? maxTx.amount + ' ₽' : '-';
     document.getElementById('stat-max-cat').innerText = maxTx ? getCatName(maxTx.categoryId) : '';
     
@@ -568,51 +625,107 @@ function updateAnalytics() {
     document.getElementById('stat-freq').innerText = mostFreqCatId ? getCatName(mostFreqCatId) : '-';
     document.getElementById('stat-freq-count').innerText = maxFreq > 0 ? `${maxFreq} ${getTxWord(maxFreq)}` : '';
 
-    const listEl = document.getElementById('analytics-categories-list');
-    listEl.innerHTML = '';
-    
-    let sortedCats = Object.entries(catSums).map(([id, amount]) => {
+    let chartData = Object.entries(catSums).map(([id, amount]) => {
         const cat = typeCats.find(c => c.id === id) || { name: 'Удалено', icon: '❓', color: '#8E8E93' };
         return { ...cat, amount };
-    }).sort((a, b) => b.amount - a.amount);
-
-    drawDoughnutChart(sortedCats, totalSum);
-
-    sortedCats.forEach(item => {
-        const li = document.createElement('li');
-        const styles = getStyleForColor(item.color);
-        const pct = totalSum > 0 ? Math.round((item.amount / totalSum) * 100) : 0;
-        
-        li.innerHTML = `
-            <div class="cat-icon" style="background-color: ${styles.bg}; color: ${item.color}; ${styles.border}">
-                ${item.icon}
-            </div>
-            <div class="tx-info">
-                <div class="tx-header">
-                    <span>${item.name}</span>
-                    <span style="color: #000;">${item.amount} ₽</span>
-                </div>
-                <div class="tx-details">Доля: ${pct}%</div>
-            </div>
-        `;
-        listEl.appendChild(li);
     });
     
-    if (sortedCats.length === 0) {
-        listEl.innerHTML = '<li style="justify-content: center; color: #8e8e93; font-size: 14px;">Нет данных за этот период</li>';
+    drawDoughnutChart(chartData, totalSum);
+
+    const listEl = document.getElementById('analytics-categories-list');
+    listEl.innerHTML = '';
+
+    if (!isSingleCat) {
+        chartData.sort((a, b) => sortVal === 'asc' ? a.amount - b.amount : b.amount - a.amount);
+        
+        chartData.forEach(item => {
+            const li = document.createElement('li');
+            const styles = getStyleForColor(item.color);
+            const pct = totalSum > 0 ? Math.round((item.amount / totalSum) * 100) : 0;
+            
+            li.onclick = () => {
+                catFilterEl.value = item.id;
+                updateAnalytics();
+            };
+            
+            li.innerHTML = `
+                <div class="cat-icon" style="background-color: ${styles.bg}; color: ${item.color}; ${styles.border}">
+                    ${item.icon}
+                </div>
+                <div class="tx-info">
+                    <div class="tx-header">
+                        <span>${item.name}</span>
+                        <span style="color: #000;">${item.amount} ₽</span>
+                    </div>
+                    <div class="tx-details">Доля: ${pct}%</div>
+                </div>
+            `;
+            listEl.appendChild(li);
+        });
+    } else {
+        let sortedTxs = [...filteredTxs];
+        if (sortVal === 'asc') sortedTxs.sort((a, b) => a.amount - b.amount);
+        else if (sortVal === 'desc') sortedTxs.sort((a, b) => b.amount - a.amount);
+        else if (sortVal === 'date-desc') sortedTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        sortedTxs.forEach(tx => {
+            const li = document.createElement('li');
+            li.onclick = () => {
+                switchView('main');
+                openEditModal(tx.id);
+            };
+
+            const cat = typeCats.find(c => c.id === tx.categoryId) || { name: 'Удалено', icon: '❓', color: '#8E8E93' };
+            const styles = getStyleForColor(cat.color);
+            let amountText = tx.type === 'expense' ? `-${tx.amount} ₽` : `+${tx.amount} ₽`;
+            let amountClass = tx.type === 'income' ? 'tx-income' : 'tx-expense';
+
+            const accountNames = { main: 'Основной', savings: 'Накопительный', grandma: 'Бабушкин' };
+            const [y, m, d] = tx.date.split('-');
+            
+            let details = `${accountNames[tx.from]} • ${d}.${m}`;
+            if (tx.comment) details += ` • ${tx.comment}`;
+
+            li.innerHTML = `
+                <div class="cat-icon" style="background-color: ${styles.bg}; color: ${cat.color}; ${styles.border}">
+                    ${cat.icon}
+                </div>
+                <div class="tx-info">
+                    <div class="tx-header">
+                        <span>${cat.name}</span>
+                        <span class="${amountClass}">${amountText}</span>
+                    </div>
+                    <div class="tx-details">${details}</div>
+                </div>
+            `;
+            listEl.appendChild(li);
+        });
+    }
+    
+    if (listEl.innerHTML === '') {
+        listEl.innerHTML = '<li style="justify-content: center; color: #8e8e93; font-size: 14px; cursor: default;">Нет данных за этот период</li>';
     }
 }
 
 function drawDoughnutChart(data, total) {
     const canvas = document.getElementById('analytics-chart');
     const ctx = canvas.getContext('2d');
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const radius = 70;
-    const lineWidth = 36;
-    
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+    const dpr = window.devicePixelRatio || 1;
+    const cssSize = 250;
+
+    canvas.style.width = cssSize + 'px';
+    canvas.style.height = cssSize + 'px';
+    canvas.width = cssSize * dpr;
+    canvas.height = cssSize * dpr;
+
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, cssSize, cssSize);
+
+    const centerX = cssSize / 2;
+    const centerY = cssSize / 2;
+    const radius = 85;
+    const lineWidth = 40;
+
     if (total === 0 || data.length === 0) {
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
@@ -623,28 +736,31 @@ function drawDoughnutChart(data, total) {
     }
 
     let startAngle = -0.5 * Math.PI;
-    
+
     data.forEach(item => {
         const sliceAngle = (item.amount / total) * 2 * Math.PI;
-        
+        if (sliceAngle <= 0) return;
+
+        const styles = getStyleForColor(item.color);
+
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-        ctx.strokeStyle = item.color;
+        ctx.strokeStyle = styles.border; 
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        
+
         if (sliceAngle > 0.4) {
             const midAngle = startAngle + sliceAngle / 2;
             const textX = centerX + Math.cos(midAngle) * radius;
             const textY = centerY + Math.sin(midAngle) * radius;
             const pct = Math.round((item.amount / total) * 100) + '%';
             
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = '#000';
             ctx.font = 'bold 12px Montserrat';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
             ctx.shadowBlur = 4;
             ctx.fillText(pct, textX, textY);
             ctx.shadowBlur = 0; 
