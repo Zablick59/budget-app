@@ -228,6 +228,7 @@ document.getElementById('history-more').addEventListener('click', () => { histor
 
 function renderCategories(selectElement, type) {
     if (selectElement) {
+        const previousValue = selectElement.value;
         selectElement.innerHTML = '';
         if (type !== 'transfer') {
             (categories[type] || []).forEach(cat => {
@@ -237,7 +238,9 @@ function renderCategories(selectElement, type) {
                 selectElement.appendChild(option);
             });
         }
+        if ([...selectElement.options].some(o => o.value === previousValue)) selectElement.value = previousValue;
     }
+    syncCategoryButtons();
     renderHistoryFilter();
 }
 
@@ -343,32 +346,189 @@ document.getElementById('save-account-btn').addEventListener('click', () => {
 });
 
 const categoryModal = document.getElementById('category-modal');
-document.getElementById('open-category-modal').addEventListener('click', () => {
-    newCatIconInput.value = '';
-    document.getElementById('new-cat-name').value = '';
-    catPreviewIcon.innerText = '📌';
-    selectedColor = getHSLColor(hueSlider.value);
+const categoryPicker = document.getElementById('category-picker-modal');
+let categoryPickerTarget = null;
+let categoryPickerType = 'expense';
+let categoryEditor = null;
+let categoryReturnFocus = null;
+
+function syncCategoryButtons() {
+    for (const [selectId, buttonId] of [['category-select', 'category-picker-btn'], ['edit-category-select', 'edit-category-picker-btn']]) {
+        const select = document.getElementById(selectId);
+        document.getElementById(buttonId).textContent = select.selectedOptions[0]?.textContent || 'Выберите категорию';
+    }
+}
+
+function openCategoryPicker(select, type) {
+    if (type === 'transfer') return;
+    categoryPickerTarget = select;
+    categoryPickerType = type;
+    categoryReturnFocus = document.activeElement;
+    renderCategoryPicker();
+    categoryPicker.style.display = 'flex';
+    (categoryPicker.querySelector('.category-choice[aria-pressed="true"]') || categoryPicker.querySelector('button')).focus();
+}
+function closeCategoryPicker() {
+    categoryPicker.style.display = 'none';
+    categoryReturnFocus?.focus();
+}
+function renderCategoryPicker() {
+    const list = document.getElementById('category-picker-list');
+    list.replaceChildren();
+    document.getElementById('category-picker-title').textContent = categoryPickerType === 'income' ? 'Категории доходов' : 'Категории расходов';
+    for (const cat of categories[categoryPickerType] || []) {
+        const row = document.createElement('div');
+        row.className = 'category-picker-row';
+        const choose = document.createElement('button');
+        choose.type = 'button';
+        choose.className = 'category-choice';
+        choose.dataset.categoryId = cat.id;
+        choose.setAttribute('aria-pressed', String(categoryPickerTarget.value === cat.id));
+        const icon = document.createElement('span');
+        icon.className = 'cat-icon';
+        icon.textContent = cat.icon;
+        const style = getStyleForColor(cat.color);
+        icon.style.backgroundColor = style.bg;
+        icon.style.border = style.border;
+        const name = document.createElement('span');
+        name.className = 'category-choice-name';
+        name.textContent = cat.name;
+        choose.append(icon, name);
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'category-edit-btn';
+        edit.textContent = '✎';
+        edit.setAttribute('aria-label', `Редактировать категорию «${cat.name}»`);
+        edit.onclick = () => openCategoryEditor(categoryPickerType, cat.id, true);
+        let timer = null, held = false, start = null;
+        const cancelHold = () => { clearTimeout(timer); timer = null; };
+        choose.addEventListener('pointerdown', e => {
+            cancelHold();
+            held = false;
+            if (!e.isPrimary || e.button !== 0) return;
+            start = { x: e.clientX, y: e.clientY };
+            timer = setTimeout(() => {
+                held = true;
+                openCategoryEditor(categoryPickerType, cat.id, true);
+            }, 550);
+        });
+        choose.addEventListener('pointermove', e => {
+            if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancelHold();
+        });
+        for (const event of ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture', 'blur']) choose.addEventListener(event, cancelHold);
+        choose.addEventListener('contextmenu', e => e.preventDefault());
+        choose.onclick = e => {
+            cancelHold();
+            if (held) { e.preventDefault(); held = false; return; }
+            categoryPickerTarget.value = cat.id;
+            syncCategoryButtons();
+            closeCategoryPicker();
+        };
+        row.append(choose, edit);
+        list.appendChild(row);
+    }
+    if (!list.children.length) {
+        const empty = document.createElement('p');
+        empty.className = 'category-picker-hint';
+        empty.textContent = 'Категорий пока нет. Нажмите «Новая», чтобы создать первую.';
+        list.appendChild(empty);
+    }
+}
+
+function colorHue(color) {
+    if (color.startsWith('hsl')) return Number(color.match(/[\d.]+/)?.[0] || 0);
+    let rgb;
+    if (color.startsWith('#')) {
+        let hex = color.slice(1);
+        if (hex.length === 3) hex = [...hex].map(c => c + c).join('');
+        rgb = [0, 2, 4].map(offset => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+    } else rgb = (color.match(/[\d.]+/g) || []).slice(0, 3).map(n => Number(n) / 255);
+    const [r, g, b] = rgb;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
+    if (!delta || !Number.isFinite(delta)) return 0;
+    const hue = max === r ? (g - b) / delta : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+    return Math.round((hue * 60 + 360) % 360);
+}
+function openCategoryEditor(type, id = null, fromPicker = false) {
+    if (type === 'transfer') return;
+    const cat = (categories[type] || []).find(c => c.id === id);
+    if (id && !cat) return;
+    categoryEditor = { type, id, fromPicker, focus: document.activeElement };
+    categoryPicker.style.display = 'none';
+    document.getElementById('category-modal-title').textContent = cat ? 'Редактировать категорию' : 'Новая категория';
+    document.getElementById('save-cat-btn').textContent = cat ? 'Сохранить' : 'Создать';
+    newCatIconInput.value = cat?.icon || '';
+    document.getElementById('new-cat-name').value = cat?.name || '';
+    catPreviewIcon.textContent = cat?.icon || '📌';
+    selectedColor = cat?.color || getHSLColor(hueSlider.value);
+    hueSlider.value = colorHue(selectedColor);
     updatePreviewColor();
+    renderRecentColors();
     categoryModal.style.display = 'flex';
+    // Focus a button so opening the editor on a phone does not raise the keyboard.
+    document.getElementById('cancel-cat-btn').focus();
+}
+function closeCategoryEditor() {
+    const editor = categoryEditor;
+    categoryModal.style.display = 'none';
+    categoryEditor = null;
+    if (editor?.fromPicker) {
+        renderCategoryPicker();
+        categoryPicker.style.display = 'flex';
+        const item = [...categoryPicker.querySelectorAll('.category-choice')].find(button => button.dataset.categoryId === editor.id);
+        (item || categoryPicker.querySelector('button')).focus();
+    } else editor?.focus?.focus();
+}
+
+document.getElementById('category-picker-btn').onclick = () => openCategoryPicker(categorySelect, currentType);
+document.getElementById('edit-category-picker-btn').onclick = () => {
+    const tx = transactions.find(t => t.id === editingTxId);
+    if (tx) openCategoryPicker(document.getElementById('edit-category-select'), tx.type);
+};
+document.getElementById('close-category-picker').onclick = closeCategoryPicker;
+document.getElementById('picker-add-category').onclick = () => openCategoryEditor(categoryPickerType, null, true);
+document.getElementById('open-category-modal').onclick = () => openCategoryEditor(currentType);
+document.getElementById('cancel-cat-btn').onclick = closeCategoryEditor;
+categoryPicker.addEventListener('click', e => { if (e.target === categoryPicker) closeCategoryPicker(); });
+document.addEventListener('keydown', e => {
+    const modal = categoryModal.style.display === 'flex' ? categoryModal : categoryPicker.style.display === 'flex' ? categoryPicker : null;
+    if (!modal) return;
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        if (modal === categoryModal) closeCategoryEditor(); else closeCategoryPicker();
+    } else if (e.key === 'Tab') {
+        const controls = [...modal.querySelectorAll('button, input')].filter(el => !el.disabled && el.getClientRects().length);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
 });
 
-document.getElementById('cancel-cat-btn').addEventListener('click', () => categoryModal.style.display = 'none');
-
 document.getElementById('save-cat-btn').addEventListener('click', () => {
+    if (!categoryEditor) return;
+    const { type, id, fromPicker } = categoryEditor;
     const icon = newCatIconInput.value.trim() || '📌';
     const name = document.getElementById('new-cat-name').value.trim();
-    if (!name || currentType === 'transfer') return;
-
-    const newCat = { id: FinanceData.id('cat'), name, icon, color: selectedColor };
+    if (!name) { document.getElementById('new-cat-name').focus(); return; }
+    const category = { id: id || FinanceData.id('cat'), name, icon, color: selectedColor };
+    const updated = id ? categories[type].map(cat => cat.id === id ? category : cat) : [...categories[type], category];
     if (!persistChanges({
-        categories: { ...categories, [currentType]: [...categories[currentType], newCat] },
+        categories: { ...categories, [type]: updated },
         recentColors: [selectedColor, ...recentColors.filter(c => c !== selectedColor)].slice(0, 5)
     })) return;
-    renderRecentColors();
     renderCategories(categorySelect, currentType);
-    categorySelect.value = newCat.id;
-    
-    categoryModal.style.display = 'none';
+    const editingTransaction = transactions.find(tx => tx.id === editingTxId);
+    if (editingTransaction && document.getElementById('edit-modal').style.display === 'flex') {
+        const select = document.getElementById('edit-category-select');
+        const previous = select.value;
+        renderCategories(select, editingTransaction.type);
+        selectHistoricalValue(select, previous, 'Удалённая категория');
+    }
+    if (!id) (fromPicker ? categoryPickerTarget : categorySelect).value = category.id;
+    syncCategoryButtons();
+    renderRecentColors();
+    updateUI();
+    closeCategoryEditor();
 });
 
 form.addEventListener('submit', (e) => {
@@ -865,6 +1025,7 @@ function openEditModal(id) {
         document.getElementById('edit-from-account-label').innerText = tx.type === 'income' ? 'Куда:' : 'Откуда:';
         renderCategories(editCategorySelect, tx.type);
         selectHistoricalValue(editCategorySelect, tx.categoryId, 'Удалённая категория');
+        syncCategoryButtons();
     }
     
     editModal.style.display = 'flex';

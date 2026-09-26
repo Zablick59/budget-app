@@ -57,7 +57,8 @@
                     <div id="category-group" class="form-group">
                         <label>Категория:</label>
                         <div class="category-flex">
-                            <select id="category-select"></select>
+                            <select id="category-select" hidden aria-hidden="true" tabindex="-1"></select>
+                            <button type="button" id="category-picker-btn" class="category-picker-trigger" aria-haspopup="dialog" aria-controls="category-picker-modal">Выберите категорию</button>
                             <button type="button" id="delete-cat-btn" class="icon-btn">🗑️</button>
                             <button type="button" id="open-category-modal" class="icon-btn">➕</button>
                         </div>
@@ -171,9 +172,21 @@
         </div>
     </div>
 
-    <div id="category-modal" class="modal">
+    <div id="category-picker-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="category-picker-title">
         <div class="modal-content">
-            <h3>Новая категория</h3>
+            <h3 id="category-picker-title">Категории</h3>
+            <p class="category-picker-hint">Нажмите, чтобы выбрать. Зажмите или нажмите ✎, чтобы изменить.</p>
+            <div id="category-picker-list" class="category-picker-list"></div>
+            <div class="modal-buttons">
+                <button type="button" id="close-category-picker" class="btn-secondary">Закрыть</button>
+                <button type="button" id="picker-add-category" class="submit-btn">Новая</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="category-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="category-modal-title">
+        <div class="modal-content">
+            <h3 id="category-modal-title">Новая категория</h3>
             
             <div class="cat-preview-wrap">
                 <div id="cat-preview-icon" class="cat-icon" style="width: 60px; height: 60px; font-size: 30px; margin: 0 auto 16px;">📌</div>
@@ -215,7 +228,8 @@
 
             <div id="edit-category-wrap" class="form-group">
                 <label>Категория:</label>
-                <select id="edit-category-select"></select>
+                <select id="edit-category-select" hidden aria-hidden="true" tabindex="-1"></select>
+                <button type="button" id="edit-category-picker-btn" class="category-picker-trigger" aria-haspopup="dialog" aria-controls="category-picker-modal">Выберите категорию</button>
             </div>
 
             <input type="text" id="edit-comment" placeholder="Комментарий...">
