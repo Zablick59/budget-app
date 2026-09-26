@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -21,6 +21,8 @@
             <h1>Мои финансы</h1>
         </header>
 
+        <p id="storage-notice" class="storage-notice" role="alert" hidden></p>
+
         <div id="main-view">
             <section class="accounts-card" id="accounts-list">
             </section>
@@ -34,7 +36,7 @@
                 </div>
 
                 <form id="transaction-form">
-                    <input type="number" id="amount" placeholder="Сумма (₽)" required>
+                    <input type="text" inputmode="decimal" id="amount" placeholder="Сумма (₽)" required>
                     
                     <div class="date-controls">
                         <button type="button" id="date-prev" class="btn-secondary">Вчера</button>
@@ -74,6 +76,7 @@
                     </select>
                 </div>
                 <ul id="history-list"></ul>
+                <button type="button" id="history-more" class="btn-secondary" hidden>Показать ещё</button>
             </section>
 
             <div style="margin-top: 30px;">
@@ -177,7 +180,7 @@
             </div>
 
             <div class="modal-flex-row">
-                <input type="text" id="new-cat-icon" placeholder="Эмодзи" maxlength="2">
+                <input type="text" id="new-cat-icon" placeholder="Эмодзи" maxlength="32">
                 <input type="text" id="new-cat-name" placeholder="Название">
             </div>
             
@@ -197,8 +200,8 @@
     <div id="edit-modal" class="modal">
         <div class="modal-content">
             <h3>Редактировать</h3>
-            <input type="number" id="edit-amount" placeholder="Сумма" required>
-            <input type="date" id="edit-date" required>
+            <input type="text" inputmode="decimal" id="edit-amount" placeholder="Сумма" required>
+            <div class="date-field"><input type="date" id="edit-date" aria-label="Дата операции" required></div>
             
             <div id="edit-account-from-wrap" class="form-group">
                 <label id="edit-from-account-label">Откуда:</label>
@@ -225,6 +228,8 @@
         </div>
     </div>
 
+    <script src="data.js"></script>
+    <script src="chart.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -1,33 +1,38 @@
-let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
-let categories = JSON.parse(localStorage.getItem('categories')) || {
-    expense: [
-        { id: 'cat_e1', name: 'Еда', icon: '🍔', color: 'hsl(0, 100%, 50%)' },
-        { id: 'cat_e2', name: 'Транспорт', icon: '🚕', color: 'hsl(45, 100%, 50%)' }
-    ],
-    income: [
-        { id: 'cat_i1', name: 'Зарплата', icon: '💰', color: 'hsl(120, 100%, 40%)' }
-    ]
-};
-
-let accounts = JSON.parse(localStorage.getItem('accounts'));
-if (!accounts) {
-    let oldBase = JSON.parse(localStorage.getItem('baseBalances'));
-    if (oldBase) {
-        accounts = [
-            { id: 'main', name: 'Основной', baseBalance: oldBase.main || 0 },
-            { id: 'savings', name: 'Накопительный', baseBalance: oldBase.savings || 0 },
-            { id: 'grandma', name: 'Бабушкин', baseBalance: oldBase.grandma || 0 }
-        ];
-    } else {
-        accounts = [{ id: 'acc_' + Date.now(), name: 'Основной', baseBalance: 0 }];
+let { transactions, categories, accounts, recentColors, visibility } = FinanceData.load();
+const money = FinanceData.format;
+const cents = FinanceData.cents;
+const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+function currentData() { return { transactions, categories, accounts, recentColors, visibility }; }
+function persistChanges(patch, restoring = false) {
+    try {
+        const saved = FinanceData.save({ ...currentData(), ...patch }, restoring);
+        ({ transactions, categories, accounts, recentColors, visibility } = saved);
+        document.getElementById('storage-notice').hidden = true;
+        return true;
+    } catch (error) {
+        alert(error.message);
+        return false;
     }
-    localStorage.setItem('accounts', JSON.stringify(accounts));
 }
-
-let recentColors = JSON.parse(localStorage.getItem('recentColors')) || [
-    'hsl(0, 100%, 50%)', 'hsl(45, 100%, 50%)', 'hsl(120, 100%, 40%)', 'hsl(210, 100%, 50%)', 'hsl(280, 100%, 50%)'
-];
-let visibility = JSON.parse(localStorage.getItem('visibility')) || {};
+function localDateString(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function dateFromString(value) {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+function validateTransaction(tx, original = null) {
+    if (tx.amount === null || tx.amount <= 0) return 'Введите сумму больше нуля, максимум с двумя знаками после запятой.';
+    if (!FinanceData.validDate(tx.date)) return 'Укажите корректную дату.';
+    if (!accounts.some(a => a.id === tx.from) && tx.from !== original?.from) return 'Выберите счёт.';
+    if (tx.type === 'transfer') {
+        if (!accounts.some(a => a.id === tx.to) && tx.to !== original?.to) return 'Выберите счёт получателя.';
+        if (tx.from === tx.to) return 'Выберите два разных счёта для перевода.';
+    } else if (!(categories[tx.type] || []).some(c => c.id === tx.categoryId) && tx.categoryId !== original?.categoryId) {
+        return 'Создайте или выберите категорию.';
+    }
+    return '';
+}
 
 const eyeOpenSVG = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 const eyeClosedSVG = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
@@ -40,8 +45,6 @@ let currentView = 'main';
 let analyticsType = 'expense';
 let analyticsPeriod = 'month';
 
-let currentChartData = [];
-let currentChartTotal = 0;
 
 const form = document.getElementById('transaction-form');
 const categorySelect = document.getElementById('category-select');
@@ -52,9 +55,10 @@ const catPreviewIcon = document.getElementById('cat-preview-icon');
 const newCatIconInput = document.getElementById('new-cat-icon');
 
 function init() {
-    if (Array.isArray(categories)) {
-        categories = { expense: categories, income: [] };
-        localStorage.setItem('categories', JSON.stringify(categories));
+    if (FinanceData.error) {
+        const notice = document.getElementById('storage-notice');
+        notice.textContent = FinanceData.error;
+        notice.hidden = false;
     }
     renderCategories(categorySelect, currentType);
     renderAccountSelects();
@@ -128,25 +132,16 @@ document.querySelectorAll('.analytics-period-tab').forEach(btn => {
     });
 });
 
-function setCurrentDate() {
-    const d = new Date();
-    const tzOffset = d.getTimezoneOffset() * 60000;
-    dateInput.value = (new Date(d - tzOffset)).toISOString().split('T')[0];
+function setCurrentDate() { dateInput.value = localDateString(new Date()); }
+function moveDate(days) {
+    if (!FinanceData.validDate(dateInput.value)) return;
+    const date = dateFromString(dateInput.value);
+    date.setDate(date.getDate() + days);
+    const nextDate = localDateString(date);
+    if (FinanceData.validDate(nextDate)) dateInput.value = nextDate;
 }
-
-document.getElementById('date-prev').addEventListener('click', () => {
-    if (!dateInput.value) return;
-    const d = new Date(dateInput.value);
-    d.setDate(d.getDate() - 1);
-    dateInput.value = d.toISOString().split('T')[0];
-});
-
-document.getElementById('date-next').addEventListener('click', () => {
-    if (!dateInput.value) return;
-    const d = new Date(dateInput.value);
-    d.setDate(d.getDate() + 1);
-    dateInput.value = d.toISOString().split('T')[0];
-});
+document.getElementById('date-prev').addEventListener('click', () => moveDate(-1));
+document.getElementById('date-next').addEventListener('click', () => moveDate(1));
 
 function getAccountName(id) {
     const acc = accounts.find(a => a.id === id);
@@ -206,7 +201,10 @@ function renderHistoryFilter() {
     }
 }
 
-document.getElementById('history-filter').addEventListener('change', renderHistory);
+let historyLimit = 50;
+const expandedGroups = new Set();
+document.getElementById('history-filter').addEventListener('change', () => { historyLimit = 50; renderHistory(); });
+document.getElementById('history-more').addEventListener('click', () => { historyLimit += 50; renderHistory(); });
 
 function renderCategories(selectElement, type) {
     if (selectElement) {
@@ -228,9 +226,9 @@ document.getElementById('delete-cat-btn').addEventListener('click', () => {
     if (!selectedId || currentType === 'transfer') return;
     
     if (confirm('Действительно удалить эту категорию?')) {
-        categories[currentType] = categories[currentType].filter(c => c.id !== selectedId);
-        localStorage.setItem('categories', JSON.stringify(categories));
+        if (!persistChanges({ categories: { ...categories, [currentType]: categories[currentType].filter(c => c.id !== selectedId) } })) return;
         renderCategories(categorySelect, currentType);
+        updateUI();
     }
 });
 
@@ -239,9 +237,10 @@ function getHSLColor(hue) {
 }
 
 function updatePreviewColor() {
-    catPreviewIcon.style.backgroundColor = selectedColor.replace(')', ', 0.2)').replace('hsl', 'hsla');
+    const styles = getStyleForColor(selectedColor);
+    catPreviewIcon.style.backgroundColor = styles.bg;
     catPreviewIcon.style.color = selectedColor;
-    catPreviewIcon.style.border = `1px solid ${selectedColor.replace(')', ', 0.5)').replace('hsl', 'hsla')}`;
+    catPreviewIcon.style.border = styles.border;
 }
 
 hueSlider.addEventListener('input', (e) => {
@@ -254,14 +253,6 @@ newCatIconInput.addEventListener('input', (e) => {
     catPreviewIcon.innerText = e.target.value || '📌';
 });
 
-function addRecentColor(color) {
-    recentColors = recentColors.filter(c => c !== color);
-    recentColors.unshift(color);
-    if (recentColors.length > 5) recentColors.pop();
-    localStorage.setItem('recentColors', JSON.stringify(recentColors));
-    renderRecentColors();
-}
-
 function renderRecentColors() {
     const palette = document.getElementById('recent-colors-palette');
     palette.innerHTML = '';
@@ -269,12 +260,7 @@ function renderRecentColors() {
         const swatch = document.createElement('div');
         swatch.className = 'color-swatch' + (color === selectedColor ? ' selected' : '');
         
-        let displayColor = color;
-        if (color.startsWith('#')) {
-            displayColor = color; 
-        }
-
-        swatch.style.backgroundColor = displayColor;
+        swatch.style.backgroundColor = color;
         swatch.addEventListener('click', () => {
             selectedColor = color;
             updatePreviewColor();
@@ -316,8 +302,7 @@ document.getElementById('cancel-account-btn').addEventListener('click', () => ac
 document.getElementById('delete-account-btn').addEventListener('click', () => {
     if (accounts.length <= 1) return;
     if (confirm('Удалить этот счет? Транзакции останутся в истории, но будут числиться за удаленным счетом.')) {
-        accounts = accounts.filter(a => a.id !== editingAccountId);
-        localStorage.setItem('accounts', JSON.stringify(accounts));
+        if (!persistChanges({ accounts: accounts.filter(a => a.id !== editingAccountId) })) return;
         renderAccountSelects();
         updateUI();
         accountModal.style.display = 'none';
@@ -328,14 +313,10 @@ document.getElementById('save-account-btn').addEventListener('click', () => {
     const name = accountNameInput.value.trim();
     if (!name) return;
     
-    if (editingAccountId) {
-        const acc = accounts.find(a => a.id === editingAccountId);
-        if (acc) acc.name = name;
-    } else {
-        accounts.push({ id: 'acc_' + Date.now(), name: name, baseBalance: 0 });
-    }
-    
-    localStorage.setItem('accounts', JSON.stringify(accounts));
+    const nextAccounts = editingAccountId
+        ? accounts.map(a => a.id === editingAccountId ? { ...a, name } : a)
+        : [...accounts, { id: FinanceData.id('acc'), name, baseBalance: 0 }];
+    if (!persistChanges({ accounts: nextAccounts })) return;
     renderAccountSelects();
     updateUI();
     accountModal.style.display = 'none';
@@ -358,12 +339,12 @@ document.getElementById('save-cat-btn').addEventListener('click', () => {
     const name = document.getElementById('new-cat-name').value.trim();
     if (!name || currentType === 'transfer') return;
 
-    const newCat = { id: 'cat' + Date.now(), name, icon, color: selectedColor };
-    categories[currentType].push(newCat);
-    localStorage.setItem('categories', JSON.stringify(categories));
-    
-    addRecentColor(selectedColor);
-    
+    const newCat = { id: FinanceData.id('cat'), name, icon, color: selectedColor };
+    if (!persistChanges({
+        categories: { ...categories, [currentType]: [...categories[currentType], newCat] },
+        recentColors: [selectedColor, ...recentColors.filter(c => c !== selectedColor)].slice(0, 5)
+    })) return;
+    renderRecentColors();
     renderCategories(categorySelect, currentType);
     categorySelect.value = newCat.id;
     
@@ -372,11 +353,10 @@ document.getElementById('save-cat-btn').addEventListener('click', () => {
 
 form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const amount = parseFloat(document.getElementById('amount').value);
-    if (!amount || amount <= 0 || !dateInput.value) return;
+    const amount = FinanceData.parseMoney(document.getElementById('amount').value);
 
     const tx = {
-        id: Date.now(),
+        id: FinanceData.id('tx'),
         type: currentType,
         amount: amount,
         from: document.getElementById('from-account').value,
@@ -386,8 +366,9 @@ form.addEventListener('submit', (e) => {
         date: dateInput.value
     };
 
-    transactions.unshift(tx);
-    localStorage.setItem('transactions', JSON.stringify(transactions));
+    const error = validateTransaction(tx);
+    if (error) return alert(error);
+    if (!persistChanges({ transactions: [tx, ...transactions] })) return;
     
     document.getElementById('amount').value = '';
     document.getElementById('comment').value = '';
@@ -400,32 +381,32 @@ window.editBalance = function(id) {
     const currentBalances = calculateBalances();
     const newVal = prompt(`Введите новый баланс для счета "${acc.name}" (₽):`, currentBalances[id]);
     
-    if (newVal !== null && newVal.trim() !== '' && !isNaN(parseFloat(newVal))) {
-        const difference = parseFloat(newVal) - currentBalances[id];
-        acc.baseBalance = (acc.baseBalance || 0) + difference;
-        localStorage.setItem('accounts', JSON.stringify(accounts));
-        updateUI();
-    }
+    if (newVal === null) return;
+    const value = FinanceData.parseMoney(newVal);
+    if (value === null) return alert('Введите баланс числом, например 1000,50.');
+    const baseBalance = (cents(acc.baseBalance) + cents(value) - cents(currentBalances[id])) / 100;
+    if (!persistChanges({ accounts: accounts.map(a => a.id === id ? { ...a, baseBalance } : a) })) return;
+    updateUI();
 };
 
 window.toggleVisibility = function(id, event) {
     event.stopPropagation();
-    visibility[id] = visibility[id] === false ? true : false;
-    localStorage.setItem('visibility', JSON.stringify(visibility));
+    if (!persistChanges({ visibility: { ...visibility, [id]: visibility[id] === false } })) return;
     updateUI();
 };
 
 function calculateBalances() {
-    let balances = {};
-    accounts.forEach(a => balances[a.id] = a.baseBalance || 0);
+    let balances = Object.create(null);
+    accounts.forEach(a => balances[a.id] = cents(a.baseBalance));
     transactions.forEach(tx => {
-        if (tx.type === 'income' && balances[tx.from] !== undefined) balances[tx.from] += tx.amount;
-        else if (tx.type === 'expense' && balances[tx.from] !== undefined) balances[tx.from] -= tx.amount;
+        if (tx.type === 'income' && balances[tx.from] !== undefined) balances[tx.from] += cents(tx.amount);
+        else if (tx.type === 'expense' && balances[tx.from] !== undefined) balances[tx.from] -= cents(tx.amount);
         else if (tx.type === 'transfer') {
-            if (balances[tx.from] !== undefined) balances[tx.from] -= tx.amount;
-            if (balances[tx.to] !== undefined) balances[tx.to] += tx.amount;
+            if (balances[tx.from] !== undefined) balances[tx.from] -= cents(tx.amount);
+            if (balances[tx.to] !== undefined) balances[tx.to] += cents(tx.amount);
         }
     });
+    for (const id of Object.keys(balances)) balances[id] /= 100;
     return balances;
 }
 
@@ -442,17 +423,20 @@ function renderAccountsList() {
         accDiv.className = 'account';
         
         accDiv.innerHTML = `
-            <span onclick="openAccountModal('${acc.id}')" style="flex:1; cursor:pointer;">${acc.name}</span>
+            <span data-action="account" style="flex:1; cursor:pointer;">${escapeHTML(acc.name)}</span>
             <div class="balance-container">
-                <div class="eye-icon" onclick="toggleVisibility('${acc.id}', event)">
+                <div class="eye-icon" data-action="visibility">
                     ${isVisible ? eyeOpenSVG : eyeClosedSVG}
                 </div>
-                <strong onclick="editBalance('${acc.id}')" style="cursor:pointer;">
-                    <span class="amount ${isVisible ? '' : 'blur-text'}">${bal}</span>
+                <strong data-action="balance" style="cursor:pointer;">
+                    <span class="amount ${isVisible ? '' : 'blur-text'}">${money(bal)}</span>
                     <span class="currency">₽</span>
                 </strong>
             </div>
         `;
+        accDiv.querySelector('[data-action="account"]').onclick = () => openAccountModal(acc.id);
+        accDiv.querySelector('[data-action="visibility"]').onclick = event => toggleVisibility(acc.id, event);
+        accDiv.querySelector('[data-action="balance"]').onclick = () => editBalance(acc.id);
         container.appendChild(accDiv);
     });
     
@@ -513,18 +497,13 @@ function hexToRgbaStr(hex, alpha) {
 }
 
 function getStyleForColor(colorStr) {
-    if (colorStr.startsWith('#')) {
-        return {
-            bg: hexToRgbaStr(colorStr, 0.2),
-            border: `1px solid ${hexToRgbaStr(colorStr, 0.5)}`
-        };
-    } else if (colorStr.startsWith('hsl')) {
-        return {
-            bg: colorStr.replace(')', ', 0.2)').replace('hsl', 'hsla'),
-            border: `1px solid ${colorStr.replace(')', ', 0.5)').replace('hsl', 'hsla')}`
-        };
-    }
-    return { bg: '#eee', border: '1px solid #ccc' };
+    const translucent = alpha => {
+        if (colorStr.startsWith('#')) return hexToRgbaStr(colorStr, alpha);
+        const match = colorStr.match(/^(hsl|rgb)a?\(([^)]+)\)$/i);
+        if (match) return `${match[1]}a(${match[2].split(',').slice(0, 3).join(',')}, ${alpha})`;
+        return '#eee';
+    };
+    return { bg: translucent(0.2), border: `1px solid ${translucent(0.5)}` };
 }
 
 function getTxWord(n) {
@@ -545,21 +524,20 @@ function renderHistory() {
         return tx.categoryId === filterVal;
     });
 
-    let groupedObj = {};
+    let groupedObj = Object.create(null);
     filteredTx.forEach(tx => {
-        const key = `${tx.date}_${tx.type}_${tx.categoryId}_${tx.from}_${tx.to}`;
+        const key = JSON.stringify([tx.date, tx.type, tx.categoryId, tx.from, tx.to]);
         if (!groupedObj[key]) {
             groupedObj[key] = {
                 ...tx,
+                groupKey: key,
                 count: 1,
-                originalIds: [tx.id],
-                allComments: tx.comment ? [tx.comment] : []
+                originalIds: [tx.id]
             };
         } else {
-            groupedObj[key].amount += tx.amount;
+            groupedObj[key].amount = (cents(groupedObj[key].amount) + cents(tx.amount)) / 100;
             groupedObj[key].count += 1;
             groupedObj[key].originalIds.push(tx.id);
-            if (tx.comment) groupedObj[key].allComments.push(tx.comment);
         }
     });
 
@@ -572,7 +550,12 @@ function renderHistory() {
 
     let currentDateStr = null;
     
-    sortedTx.slice(0, 50).forEach(tx => {
+    document.getElementById('history-more').hidden = sortedTx.length <= historyLimit;
+    const visibleRows = sortedTx.slice(0, historyLimit).flatMap(group => [group,
+        ...(expandedGroups.has(group.groupKey) && group.count > 1
+            ? filteredTx.filter(tx => group.originalIds.includes(tx.id)).map(tx => ({ ...tx, count: 1, originalIds: [tx.id], isChild: true }))
+            : [])]);
+    visibleRows.forEach(tx => {
         if (tx.date !== currentDateStr) {
             currentDateStr = tx.date;
             const headerLi = document.createElement('li');
@@ -584,25 +567,28 @@ function renderHistory() {
         const li = document.createElement('li');
         li.className = 'tx-item';
         
+        if (tx.isChild) li.classList.add('tx-child');
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
         if (tx.count === 1) {
             li.onclick = () => openEditModal(tx.originalIds[0]);
         } else {
+            const expanded = expandedGroups.has(tx.groupKey);
+            li.setAttribute('aria-expanded', String(expanded));
             li.onclick = () => {
-                const cmt = tx.allComments.length ? `\n\nКомментарии:\n- ` + tx.allComments.join('\n- ') : '';
-                if(confirm(`Сгруппировано операций: ${tx.count}${cmt}\n\nРедактировать объединенные записи нельзя. Хотите удалить их все?`)) {
-                    transactions = transactions.filter(t => !tx.originalIds.includes(t.id));
-                    localStorage.setItem('transactions', JSON.stringify(transactions));
-                    updateUI();
-                }
+                if (expanded) expandedGroups.delete(tx.groupKey);
+                else expandedGroups.add(tx.groupKey);
+                renderHistory();
             };
         }
-        
+        li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); li.click(); } };
+
         let cat = { name: 'Перевод', icon: '🔄', color: '#8E8E93' };
         if (tx.type !== 'transfer') {
             cat = (categories[tx.type] || []).find(c => c.id === tx.categoryId) || { name: 'Удалено', icon: '❓', color: '#8E8E93' };
         }
         
-        let amountText = tx.type === 'expense' ? `-${tx.amount} ₽` : tx.type === 'income' ? `+${tx.amount} ₽` : `${tx.amount} ₽`;
+        let amountText = tx.type === 'expense' ? `-${money(tx.amount)} ₽` : tx.type === 'income' ? `+${money(tx.amount)} ₽` : `${money(tx.amount)} ₽`;
         let amountClass = tx.type === 'income' ? 'tx-income' : 'tx-expense';
         
         let accInfo = tx.type === 'transfer' 
@@ -611,7 +597,7 @@ function renderHistory() {
         
         let details = accInfo;
         if (tx.count > 1) {
-            details += ` • ${tx.count} ${getTxWord(tx.count)}`;
+            details += ` • ${tx.count} ${getTxWord(tx.count)} ${expandedGroups.has(tx.groupKey) ? '▴' : '▾'}`;
         } else if (tx.comment) {
             details += ` • ${tx.comment}`;
         }
@@ -619,15 +605,15 @@ function renderHistory() {
         const styles = getStyleForColor(cat.color);
 
         li.innerHTML = `
-            <div class="cat-icon" style="background-color: ${styles.bg}; color: ${cat.color}; ${styles.border}">
-                ${cat.icon}
+            <div class="cat-icon" style="background-color: ${styles.bg}; color: ${cat.color}; border: ${styles.border}">
+                ${escapeHTML(cat.icon)}
             </div>
             <div class="tx-info">
                 <div class="tx-header">
-                    <span>${cat.name}</span>
+                    <span>${escapeHTML(cat.name)}</span>
                     <span class="${amountClass}">${amountText}</span>
                 </div>
-                <div class="tx-details">${details}</div>
+                <div class="tx-details">${escapeHTML(details)}</div>
             </div>
         `;
         list.appendChild(li);
@@ -635,7 +621,7 @@ function renderHistory() {
 }
 
 function isDateInAnalyticsPeriod(dateStr, period) {
-    const txDate = new Date(dateStr);
+    const txDate = dateFromString(dateStr);
     const today = new Date();
     today.setHours(0,0,0,0);
     txDate.setHours(0,0,0,0);
@@ -660,27 +646,24 @@ function isDateInAnalyticsPeriod(dateStr, period) {
 document.getElementById('analytics-cat-filter').addEventListener('change', updateAnalytics);
 document.getElementById('analytics-sort').addEventListener('change', updateAnalytics);
 
-let lastAnalyticsType = null;
 let lastIsSingleCat = null;
 
 function updateAnalytics() {
     const catFilterEl = document.getElementById('analytics-cat-filter');
     const sortEl = document.getElementById('analytics-sort');
 
-    if (lastAnalyticsType !== analyticsType) {
-        const currentCats = categories[analyticsType] || [];
-        const oldCatVal = catFilterEl.value;
-        catFilterEl.innerHTML = '<option value="all">Все категории</option>';
-        currentCats.forEach(c => {
-            catFilterEl.innerHTML += `<option value="${c.id}">${c.icon} ${c.name}</option>`;
-        });
-        if ([...catFilterEl.options].some(o => o.value === oldCatVal)) {
-            catFilterEl.value = oldCatVal;
-        } else {
-            catFilterEl.value = 'all';
+    const oldCatVal = catFilterEl.value;
+    catFilterEl.replaceChildren(new Option('Все категории', 'all'));
+    const filterCats = [...(categories[analyticsType] || [])];
+    const knownIds = new Set(filterCats.map(c => c.id));
+    transactions.filter(t => t.type === analyticsType).forEach(t => {
+        if (!knownIds.has(t.categoryId)) {
+            knownIds.add(t.categoryId);
+            filterCats.push({ id: t.categoryId, name: 'Удалённая категория', icon: '❓' });
         }
-        lastAnalyticsType = analyticsType;
-    }
+    });
+    filterCats.forEach(c => catFilterEl.add(new Option(`${c.icon} ${c.name}`, c.id)));
+    catFilterEl.value = [...catFilterEl.options].some(o => o.value === oldCatVal) ? oldCatVal : 'all';
 
     const isSingleCat = catFilterEl.value !== 'all';
 
@@ -702,13 +685,11 @@ function updateAnalytics() {
     let periodTxs = transactions.filter(t => t.type === analyticsType && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
     
     // Считаем все данные для правильной отрисовки общей диаграммы
-    let catSums = {};
-    let catCounts = {};
+    let catSums = Object.create(null);
     periodTxs.forEach(t => {
-        catSums[t.categoryId] = (catSums[t.categoryId] || 0) + t.amount;
-        catCounts[t.categoryId] = (catCounts[t.categoryId] || 0) + 1;
+        catSums[t.categoryId] = (catSums[t.categoryId] || 0) + cents(t.amount);
     });
-    let totalSum = Object.values(catSums).reduce((a, b) => a + b, 0);
+    let totalSum = Object.values(catSums).reduce((a, b) => a + b, 0) / 100;
 
     const typeCats = categories[analyticsType] || [];
     const getCatName = (id) => {
@@ -720,7 +701,7 @@ function updateAnalytics() {
     let statsTxs = isSingleCat ? periodTxs.filter(t => t.categoryId === catFilterVal) : periodTxs;
     let sMaxTx = null;
     let sMinTx = null;
-    let sFreqCounts = {};
+    let sFreqCounts = Object.create(null);
     
     statsTxs.forEach(t => {
         if (!sMaxTx || t.amount > sMaxTx.amount) sMaxTx = t;
@@ -737,18 +718,18 @@ function updateAnalytics() {
         }
     }
 
-    document.getElementById('analytics-total-sum').innerText = totalSum;
-    document.getElementById('stat-max').innerText = sMaxTx ? sMaxTx.amount + ' ₽' : '-';
+    document.getElementById('analytics-total-sum').innerText = money(totalSum);
+    document.getElementById('stat-max').innerText = sMaxTx ? money(sMaxTx.amount) + ' ₽' : '-';
     document.getElementById('stat-max-cat').innerText = sMaxTx ? getCatName(sMaxTx.categoryId) : '';
-    document.getElementById('stat-min').innerText = sMinTx ? sMinTx.amount + ' ₽' : '-';
+    document.getElementById('stat-min').innerText = sMinTx ? money(sMinTx.amount) + ' ₽' : '-';
     document.getElementById('stat-min-cat').innerText = sMinTx ? getCatName(sMinTx.categoryId) : '';
-    document.getElementById('stat-freq').innerText = mostFreqCatId ? getCatName(mostFreqCatId) : '-';
+    document.getElementById('stat-freq').innerText = mostFreqCatId !== null ? getCatName(mostFreqCatId) : '-';
     document.getElementById('stat-freq-count').innerText = maxFreq > 0 ? `${maxFreq} ${getTxWord(maxFreq)}` : '';
 
     // Данные для графика (всегда передаем все категории)
     let chartData = Object.entries(catSums).map(([id, amount]) => {
         const cat = typeCats.find(c => c.id === id) || { name: 'Удалено', icon: '❓', color: '#8E8E93', id: id };
-        return { ...cat, amount };
+        return { ...cat, amount: amount / 100 };
     });
     
     drawDoughnutChart(chartData, totalSum, catFilterVal);
@@ -770,13 +751,13 @@ function updateAnalytics() {
             };
             
             li.innerHTML = `
-                <div class="cat-icon" style="background-color: ${styles.bg}; color: ${item.color}; ${styles.border}">
-                    ${item.icon}
+                <div class="cat-icon" style="background-color: ${styles.bg}; color: ${item.color}; border: ${styles.border}">
+                    ${escapeHTML(item.icon)}
                 </div>
                 <div class="tx-info">
                     <div class="tx-header">
-                        <span>${item.name}</span>
-                        <span style="color: #000;">${item.amount} ₽</span>
+                        <span>${escapeHTML(item.name)}</span>
+                        <span style="color: #000;">${money(item.amount)} ₽</span>
                     </div>
                     <div class="tx-details">Доля: ${pct}%</div>
                 </div>
@@ -798,7 +779,7 @@ function updateAnalytics() {
 
             const cat = typeCats.find(c => c.id === tx.categoryId) || { name: 'Удалено', icon: '❓', color: '#8E8E93' };
             const styles = getStyleForColor(cat.color);
-            let amountText = tx.type === 'expense' ? `-${tx.amount} ₽` : `+${tx.amount} ₽`;
+            let amountText = tx.type === 'expense' ? `-${money(tx.amount)} ₽` : `+${money(tx.amount)} ₽`;
             let amountClass = tx.type === 'income' ? 'tx-income' : 'tx-expense';
 
             const [y, m, d] = tx.date.split('-');
@@ -807,15 +788,15 @@ function updateAnalytics() {
             if (tx.comment) details += ` • ${tx.comment}`;
 
             li.innerHTML = `
-                <div class="cat-icon" style="background-color: ${styles.bg}; color: ${cat.color}; ${styles.border}">
-                    ${cat.icon}
+                <div class="cat-icon" style="background-color: ${styles.bg}; color: ${cat.color}; border: ${styles.border}">
+                    ${escapeHTML(cat.icon)}
                 </div>
                 <div class="tx-info">
                     <div class="tx-header">
-                        <span>${cat.name}</span>
+                        <span>${escapeHTML(cat.name)}</span>
                         <span class="${amountClass}">${amountText}</span>
                     </div>
-                    <div class="tx-details">${details}</div>
+                    <div class="tx-details">${escapeHTML(details)}</div>
                 </div>
             `;
             listEl.appendChild(li);
@@ -827,123 +808,20 @@ function updateAnalytics() {
     }
 }
 
-function drawDoughnutChart(data, total, selectedId = 'all') {
-    const canvas = document.getElementById('analytics-chart');
-    const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const cssSize = 250;
-
-    canvas.style.width = cssSize + 'px';
-    canvas.style.height = cssSize + 'px';
-    canvas.width = cssSize * dpr;
-    canvas.height = cssSize * dpr;
-
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, cssSize, cssSize);
-
-    const centerX = cssSize / 2;
-    const centerY = cssSize / 2;
-    const baseRadius = 85;
-    const lineWidth = 40;
-
-    currentChartData = data;
-    currentChartTotal = total;
-
-    if (total === 0 || data.length === 0) {
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, baseRadius, 0, 2 * Math.PI);
-        ctx.strokeStyle = '#e5e5ea';
-        ctx.lineWidth = lineWidth;
-        ctx.stroke();
-        return;
-    }
-
-    let startAngle = -0.5 * Math.PI;
-    const isAnySelected = selectedId !== 'all';
-
-    data.forEach(item => {
-        const sliceAngle = (item.amount / total) * 2 * Math.PI;
-        if (sliceAngle <= 0) return;
-
-        item.startAngle = startAngle;
-        item.endAngle = startAngle + sliceAngle;
-
-        const isSelected = item.id === selectedId;
-        const radius = isAnySelected ? (isSelected ? 95 : 80) : baseRadius;
-        const alpha = isAnySelected ? (isSelected ? 0.95 : 0.25) : 0.85;
-
-        let strokeColor = '#ccc';
-        if (item.color.startsWith('hsl')) {
-            strokeColor = item.color.replace(/\)/, `, ${alpha})`).replace('hsl', 'hsla');
-        } else if (item.color.startsWith('#')) {
-            strokeColor = hexToRgbaStr(item.color, alpha);
-        } else {
-            strokeColor = item.color;
-        }
-
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-        ctx.strokeStyle = strokeColor; 
-        ctx.lineWidth = isSelected ? 44 : lineWidth;
-        ctx.stroke();
-
-        if ((!isAnySelected && sliceAngle > 0.4) || isSelected) {
-            const midAngle = startAngle + sliceAngle / 2;
-            const textX = centerX + Math.cos(midAngle) * radius;
-            const textY = centerY + Math.sin(midAngle) * radius;
-            const pct = Math.round((item.amount / total) * 100) + '%';
-            
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-            ctx.shadowBlur = 4;
-            
-            ctx.font = '20px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-            ctx.fillText(item.icon, textX, textY - 10);
-            
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 12px Montserrat';
-            ctx.fillText(pct, textX, textY + 10);
-            
-            ctx.shadowBlur = 0; 
-        }
-        
-        startAngle += sliceAngle;
-    });
-}
-
-document.getElementById('analytics-chart').addEventListener('click', function(e) {
-    if (!currentChartData || currentChartTotal === 0) return;
-    const rect = this.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = 125;
-    const centerY = 125;
-    
-    const dx = x - centerX;
-    const dy = y - centerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance > 50 && distance < 125) {
-        let angle = Math.atan2(dy, dx);
-        if (angle < -0.5 * Math.PI) angle += 2 * Math.PI;
-        
-        const clickedItem = currentChartData.find(item => angle >= item.startAngle && angle <= item.endAngle);
-        if (clickedItem) {
-            const filterEl = document.getElementById('analytics-cat-filter');
-            if (filterEl.value === clickedItem.id) {
-                filterEl.value = 'all'; 
-            } else {
-                filterEl.value = clickedItem.id;
-            }
-            updateAnalytics();
-        }
-    }
+const chart = new BudgetChart(document.getElementById('analytics-chart'), id => {
+    const filter = document.getElementById('analytics-cat-filter');
+    filter.value = filter.value === id ? 'all' : id;
+    updateAnalytics();
 });
+function drawDoughnutChart(data, total, selectedId = 'all') { chart.update(data, total, selectedId); }
 
 const editModal = document.getElementById('edit-modal');
 const editCategorySelect = document.getElementById('edit-category-select');
 
+function selectHistoricalValue(select, value, label) {
+    if (![...select.options].some(o => o.value === value)) select.add(new Option(label, value));
+    select.value = value;
+}
 function openEditModal(id) {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
@@ -951,8 +829,9 @@ function openEditModal(id) {
 
     document.getElementById('edit-amount').value = tx.amount;
     document.getElementById('edit-date').value = tx.date;
-    document.getElementById('edit-from-account').value = tx.from;
-    document.getElementById('edit-to-account').value = tx.to || 'main';
+    renderAccountSelects();
+    selectHistoricalValue(document.getElementById('edit-from-account'), tx.from, 'Удалённый счёт');
+    if (tx.type === 'transfer') selectHistoricalValue(document.getElementById('edit-to-account'), tx.to, 'Удалённый счёт');
     document.getElementById('edit-comment').value = tx.comment || '';
 
     if (tx.type === 'transfer') {
@@ -964,7 +843,7 @@ function openEditModal(id) {
         document.getElementById('edit-account-to-wrap').style.display = 'none';
         document.getElementById('edit-from-account-label').innerText = tx.type === 'income' ? 'Куда:' : 'Откуда:';
         renderCategories(editCategorySelect, tx.type);
-        editCategorySelect.value = tx.categoryId;
+        selectHistoricalValue(editCategorySelect, tx.categoryId, 'Удалённая категория');
     }
     
     editModal.style.display = 'flex';
@@ -973,40 +852,32 @@ function openEditModal(id) {
 document.getElementById('cancel-edit-btn').addEventListener('click', () => editModal.style.display = 'none');
 
 document.getElementById('delete-tx-btn').addEventListener('click', () => {
-    transactions = transactions.filter(t => t.id !== editingTxId);
-    localStorage.setItem('transactions', JSON.stringify(transactions));
+    if (!confirm('Удалить эту операцию?')) return;
+    if (!persistChanges({ transactions: transactions.filter(t => t.id !== editingTxId) })) return;
     editModal.style.display = 'none';
     updateUI();
 });
 
 document.getElementById('save-edit-btn').addEventListener('click', () => {
-    const tx = transactions.find(t => t.id === editingTxId);
-    tx.amount = parseFloat(document.getElementById('edit-amount').value);
-    tx.date = document.getElementById('edit-date').value;
-    tx.from = document.getElementById('edit-from-account').value;
-    tx.comment = document.getElementById('edit-comment').value;
-    
-    if (tx.type === 'transfer') {
-        tx.to = document.getElementById('edit-to-account').value;
-    } else {
-        tx.categoryId = editCategorySelect.value;
-    }
-
-    localStorage.setItem('transactions', JSON.stringify(transactions));
+    const original = transactions.find(t => t.id === editingTxId);
+    if (!original) return;
+    const tx = { ...original,
+        amount: FinanceData.parseMoney(document.getElementById('edit-amount').value),
+        date: document.getElementById('edit-date').value,
+        from: document.getElementById('edit-from-account').value,
+        comment: document.getElementById('edit-comment').value
+    };
+    if (tx.type === 'transfer') tx.to = document.getElementById('edit-to-account').value;
+    else tx.categoryId = editCategorySelect.value;
+    const error = validateTransaction(tx, original);
+    if (error) return alert(error);
+    if (!persistChanges({ transactions: transactions.map(t => t.id === editingTxId ? tx : t) })) return;
     editModal.style.display = 'none';
     updateUI();
 });
 
 document.getElementById('download-backup-btn').addEventListener('click', async () => {
-    const backupData = {
-        transactions: transactions,
-        categories: categories,
-        accounts: accounts,
-        recentColors: recentColors,
-        visibility: visibility,
-        exportDate: new Date().toISOString()
-    };
-    
+    const backupData = { ...(FinanceData.error ? FinanceData.recovery : { schemaVersion: 2, ...currentData() }), exportDate: new Date().toISOString() };
     const jsonString = JSON.stringify(backupData, null, 2);
     const d = new Date();
     const fileName = `budget_backup_${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}.json`;
@@ -1023,7 +894,7 @@ document.getElementById('download-backup-btn').addEventListener('click', async (
                 return;
             }
         } catch (e) {
-            console.log(e);
+            if (e.name === 'AbortError') return;
         }
     }
     
@@ -1035,59 +906,29 @@ document.getElementById('download-backup-btn').addEventListener('click', async (
     document.body.appendChild(dlAnchorElem);
     dlAnchorElem.click();
     document.body.removeChild(dlAnchorElem);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
-document.getElementById('import-file').addEventListener('change', function(e) {
+document.getElementById('import-file').addEventListener('change', async function(e) {
     const file = e.target.files[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            let rawText = e.target.result.replace(/[“”«»]/g, '"');
-            const importedData = JSON.parse(rawText);
-            
-            if (importedData.transactions) {
-                transactions = importedData.transactions;
-                localStorage.setItem('transactions', JSON.stringify(transactions));
-            }
-            if (importedData.categories) {
-                categories = importedData.categories;
-                localStorage.setItem('categories', JSON.stringify(categories));
-            }
-            
-            if (importedData.accounts) {
-                accounts = importedData.accounts;
-            } else if (importedData.baseBalances) {
-                accounts = [
-                    { id: 'main', name: 'Основной', baseBalance: importedData.baseBalances.main || 0 },
-                    { id: 'savings', name: 'Накопительный', baseBalance: importedData.baseBalances.savings || 0 },
-                    { id: 'grandma', name: 'Бабушкин', baseBalance: importedData.baseBalances.grandma || 0 }
-                ];
-            }
-            localStorage.setItem('accounts', JSON.stringify(accounts));
-            
-            if (importedData.recentColors) {
-                recentColors = importedData.recentColors;
-                localStorage.setItem('recentColors', JSON.stringify(recentColors));
-            }
-            if (importedData.visibility) {
-                visibility = importedData.visibility;
-                localStorage.setItem('visibility', JSON.stringify(visibility));
-            }
-            
-            alert('Данные успешно восстановлены!');
-            renderCategories(categorySelect, currentType);
-            renderAccountSelects();
-            updateUI();
-            
-        } catch (error) {
-            alert('Ошибка восстановления файла:\n' + error.message + '\n\nУбедитесь, что внутри файла нет текста, отличного от кода.');
-        }
-        document.getElementById('import-file').value = ''; 
-    };
-    reader.readAsText(file);
+    try {
+        const imported = FinanceData.normalize(JSON.parse((await file.text()).replace(/^\uFEFF/, '')));
+        if (!confirm(`Заменить текущие данные резервной копией? В файле: ${imported.transactions.length} операций, ${imported.accounts.length} счетов.`)) return;
+        if (!persistChanges(imported, true)) return;
+        historyLimit = 50;
+        expandedGroups.clear();
+        document.querySelectorAll('.modal').forEach(modal => modal.style.display = 'none');
+        renderCategories(categorySelect, currentType);
+        renderAccountSelects();
+        renderRecentColors();
+        updateUI();
+        alert('Данные успешно восстановлены!');
+    } catch (error) {
+        alert('Не удалось восстановить файл. Текущие данные не изменены.\n' + error.message);
+    } finally {
+        this.value = '';
+    }
 });
 
 init();
