@@ -41,7 +41,10 @@ async function open(seed = fixture(), viewport = {width:390,height:844}) {
     await page.waitForSelector('#accounts-list .account');
     return {page, context, errors, dialogs, close: async()=>{assert.deepEqual(errors,[]);await context.close();}};
 }
-async function run(name, fn) { await fn(); console.log('PASS '+name); }
+async function run(name, fn) {
+    if (process.env.BUDGET_TEST_FILTER && !name.includes(process.env.BUDGET_TEST_FILTER)) return;
+    await fn(); console.log('PASS '+name);
+}
 async function importFile(page, data) {
     await page.locator('#import-file').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
     await page.waitForFunction(()=>document.querySelector('#import-file').value==='');
@@ -133,7 +136,44 @@ async function importFile(page, data) {
             assert(boxes.left>=boxes.ml+19 && boxes.right<=boxes.mr-19,JSON.stringify(boxes));
             assert.equal(boxes.color,'rgb(0, 0, 0)');assert.equal(boxes.overflow,false);
         }
-        await p.setViewportSize({width:390,height:844});await p.screenshot({path:screenshotDir+'/edit-modal.png'});await t.close();
+        await p.setViewportSize({width:390,height:844});await p.reload();await p.evaluate(()=>openEditModal(2));await p.screenshot({path:screenshotDir+'/edit-modal.png'});await t.close();
+    });
+    await run('date text stays centered and updates, navigation stays at viewport bottom', async () => {
+        const t = await open(), p = t.page;
+        assert.equal(await p.locator('#tx-date').evaluate(el => el.previousElementSibling.textContent), '26.09.2026');
+        await p.click('#date-prev');
+        assert.equal(await p.locator('#tx-date').evaluate(el => el.previousElementSibling.textContent), '25.09.2026');
+        await p.click('#date-next');
+        await p.fill('#tx-date', '2026-08-15');
+        assert.equal(await p.locator('#tx-date').evaluate(el => el.previousElementSibling.textContent), '15.08.2026');
+        await p.evaluate(() => openEditModal(1));
+        await p.fill('#edit-date', '2026-09-20');
+        assert.equal(await p.locator('#edit-date').evaluate(el => el.previousElementSibling.textContent), '20.09.2026');
+        await p.click('#save-edit-btn');
+        assert.equal(await p.evaluate(() => transactions.find(tx => tx.id === 1).date), '2026-09-20');
+        await p.evaluate(() => openEditModal(1));
+        for (const viewport of [{width:320,height:568},{width:390,height:844},{width:667,height:375}]) {
+            await p.setViewportSize(viewport);
+            const metrics = await p.evaluate(() => ({
+                navBottom: document.querySelector('.bottom-nav').getBoundingClientRect().bottom,
+                height: innerHeight,
+                viewport: document.querySelector('meta[name="viewport"]').content,
+                date: [...document.querySelectorAll('.date-display')].map(display => {
+                    const range = document.createRange(); range.selectNodeContents(display);
+                    const text = range.getBoundingClientRect(), field = display.parentElement.getBoundingClientRect();
+                    return { delta: Math.abs((text.top + text.bottom) / 2 - (field.top + field.bottom) / 2), color: getComputedStyle(display).color };
+                })
+            }));
+            assert.equal(metrics.navBottom, metrics.height);
+            assert(!metrics.viewport.includes('viewport-fit=cover'));
+            for (const field of metrics.date) { assert(field.delta < 2, JSON.stringify(field)); assert.equal(field.color, 'rgb(0, 0, 0)'); }
+        }
+        await p.setViewportSize({width:390,height:844});
+        await p.reload();
+        await p.screenshot({path:screenshotDir+'/main-date-centered.png'});
+        await p.evaluate(() => openEditModal(1));
+        await p.screenshot({path:screenshotDir+'/date-centered.png'});
+        await t.close();
     });
     await run('chart animates smoothly, labels share center, tiny sector stays within canvas and is clickable',async()=>{
         const data=fixture();data.transactions[0].amount=1;const t=await open(data),p=t.page;
@@ -142,19 +182,40 @@ async function importFile(page, data) {
         const state=await p.evaluate(()=>{const i=chart.items.find(i=>i.id==='food'),g=chart.geometry(i);return {g,focus:i.focus}});
         assert(state.g.x-32>0&&state.g.x+32<300&&state.g.y-32>0&&state.g.y+32<300);
         const labels = await p.evaluate(() => {
-            const ctx = chart.canvas.getContext('2d');
-            const calls = [], original = ctx.fillText;
-            ctx.fillText = function(text, x, y, ...args) { calls.push({ text, x, y }); return original.call(this, text, x, y, ...args); };
-            chart.paint(); ctx.fillText = original;
-            return calls;
+            const calls = [], prototype = CanvasRenderingContext2D.prototype, original = prototype.fillText;
+            prototype.fillText = function(text, x, y, ...args) { calls.push({ text, x, y }); return original.call(this, text, x, y, ...args); };
+            chart.makeLabel('🍔', '<1%', 2);
+            const rendered = [...calls]; calls.length = 0;
+            chart.paint(); chart.paint();
+            prototype.fillText = original;
+            return { rendered, perFrameTextCalls: calls.length };
         });
-        const icon = labels.find(label => label.text === '🍔'), percent = labels.find(label => label.text === '<1%');
+        const icon = labels.rendered.find(label => label.text === '🍔'), percent = labels.rendered.find(label => label.text === '<1%');
         assert.equal(icon.x, percent.x); assert(icon.y < percent.y);
+        assert.equal(labels.perFrameTextCalls, 0);
         await p.screenshot({path:screenshotDir+'/chart-tiny.png'});
         const rect=await p.locator('#analytics-chart').boundingBox();
         await p.mouse.click(rect.x+state.g.x*rect.width/300,rect.y+state.g.y*rect.height/300);
         assert.equal(await p.locator('#analytics-cat-filter').inputValue(),'all');
         await p.selectOption('#analytics-cat-filter','home');await p.waitForFunction(()=>chart.items.find(i=>i.id==='home')?.focus===1);
+        const ring = await p.evaluate(() => {
+            const selected = chart.items.find(item => item.id === 'home');
+            const geometry = chart.geometry(selected);
+            const image = chart.canvas.getContext('2d').getImageData(0, 0, chart.canvas.width, chart.canvas.height);
+            const scale = chart.canvas.width / 300;
+            let outside = 0;
+            for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+                if (image.data[(y * image.width + x) * 4 + 3] < 30) continue;
+                const px = x / scale, py = y / scale;
+                if (Math.hypot(px - 150, py - 150) > 114 && Math.hypot(px - geometry.x, py - geometry.y) > 34) outside++;
+            }
+            return { outside, fixed: [0, 0.5, 1].map(focus => {
+                const g = chart.geometry({ ...selected, focus });
+                return [g.cx, g.cy, g.radius, g.width];
+            }) };
+        });
+        assert.equal(ring.outside, 0, 'Only the bubble may extend beyond the original ring');
+        assert.deepEqual(ring.fixed, [[150,150,90,42],[150,150,90,42],[150,150,90,42]]);
         await p.screenshot({path:screenshotDir+'/chart-selected.png'});
         await p.selectOption('#analytics-cat-filter','travel');
         await p.waitForFunction(()=>{const i=chart.items.find(i=>i.id==='travel');return i.focus>0&&i.focus<1});

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -40,7 +40,7 @@
                     
                     <div class="date-controls">
                         <button type="button" id="date-prev" class="btn-secondary">Вчера</button>
-                        <input type="date" id="tx-date" required>
+                        <div class="date-field"><span class="date-display" aria-hidden="true"></span><input type="date" id="tx-date" aria-label="Дата операции" required></div>
                         <button type="button" id="date-next" class="btn-secondary">Завтра</button>
                     </div>
 
@@ -201,7 +201,7 @@
         <div class="modal-content">
             <h3>Редактировать</h3>
             <input type="text" inputmode="decimal" id="edit-amount" placeholder="Сумма" required>
-            <div class="date-field"><input type="date" id="edit-date" aria-label="Дата операции" required></div>
+            <div class="date-field"><span class="date-display" aria-hidden="true"></span><input type="date" id="edit-date" aria-label="Дата операции" required></div>
             
             <div id="edit-account-from-wrap" class="form-group">
                 <label id="edit-from-account-label">Откуда:</label>

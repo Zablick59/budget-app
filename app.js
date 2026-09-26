@@ -132,13 +132,33 @@ document.querySelectorAll('.analytics-period-tab').forEach(btn => {
     });
 });
 
-function setCurrentDate() { dateInput.value = localDateString(new Date()); }
+function syncDateDisplay(input) {
+    const display = input.parentElement.querySelector('.date-display');
+    if (!display) return;
+    display.textContent = FinanceData.validDate(input.value)
+        ? input.value.split('-').reverse().join('.') : 'Выберите дату';
+}
+for (const input of document.querySelectorAll('.date-field input[type="date"]')) {
+    input.addEventListener('input', () => syncDateDisplay(input));
+    input.addEventListener('change', () => syncDateDisplay(input));
+    input.addEventListener('click', () => {
+        // showPicker lets the whole field open the calendar in desktop browsers too.
+        try { input.showPicker?.(); } catch { /* iOS opens its native picker itself. */ }
+    });
+}
+function setCurrentDate() {
+    dateInput.value = localDateString(new Date());
+    syncDateDisplay(dateInput);
+}
 function moveDate(days) {
     if (!FinanceData.validDate(dateInput.value)) return;
     const date = dateFromString(dateInput.value);
     date.setDate(date.getDate() + days);
     const nextDate = localDateString(date);
-    if (FinanceData.validDate(nextDate)) dateInput.value = nextDate;
+    if (FinanceData.validDate(nextDate)) {
+        dateInput.value = nextDate;
+        syncDateDisplay(dateInput);
+    }
 }
 document.getElementById('date-prev').addEventListener('click', () => moveDate(-1));
 document.getElementById('date-next').addEventListener('click', () => moveDate(1));
@@ -829,6 +849,7 @@ function openEditModal(id) {
 
     document.getElementById('edit-amount').value = tx.amount;
     document.getElementById('edit-date').value = tx.date;
+    syncDateDisplay(document.getElementById('edit-date'));
     renderAccountSelects();
     selectHistoricalValue(document.getElementById('edit-from-account'), tx.from, 'Удалённый счёт');
     if (tx.type === 'transfer') selectHistoricalValue(document.getElementById('edit-to-account'), tx.to, 'Удалённый счёт');

@@ -1,4 +1,4 @@
-// Animate the same geometry that is used for hit testing and label placement.
+// The ring stays fixed. Only selection bubbles and cached labels animate.
 class BudgetChart {
     constructor(canvas, onSelect) {
         this.canvas = canvas;
@@ -24,9 +24,19 @@ class BudgetChart {
                 opacity: previous?.opacity ?? 0.92, targetFocus: focus, targetOpacity: opacity };
             next.fromFocus = next.focus;
             next.fromOpacity = next.opacity;
+            next.path = new Path2D();
+            next.path.arc(150, 150, 111, angle, end);
+            next.path.arc(150, 150, 69, end, angle, true);
+            next.path.closePath();
+            const percent = total > 0 ? item.amount / total * 100 : 0;
+            const label = percent < 1 ? '<1%' : Math.round(percent) + '%';
+            const dpr = window.devicePixelRatio || 1;
+            next.labelKey = JSON.stringify([item.icon, label, dpr]);
+            next.label = previous?.labelKey === next.labelKey ? previous.label : this.makeLabel(item.icon, label, dpr);
             angle = end;
             return next;
         });
+        this.drawOrder = [...this.items].sort((a, b) => a.targetFocus - b.targetFocus);
         this.total = total;
         this.selectedId = selectedId;
         const start = performance.now();
@@ -43,19 +53,29 @@ class BudgetChart {
         this.frame = requestAnimationFrame(animate);
     }
 
-    geometry(item) {
-        const mid = (item.start + item.end) / 2;
-        const radius = 90;
-        const offset = 10 * item.focus;
-        const cx = 150 + Math.cos(mid) * offset;
-        const cy = 150 + Math.sin(mid) * offset;
-        return { mid, radius, cx, cy, width: 42 + 22 * item.focus,
-            x: cx + Math.cos(mid) * radius, y: cy + Math.sin(mid) * radius };
+    makeLabel(icon, percent, dpr) {
+        const image = document.createElement('canvas');
+        image.width = image.height = Math.round(64 * dpr);
+        const ctx = image.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#111';
+        ctx.font = '24px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+        ctx.fillText(icon, 32, 22, 32);
+        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText(percent, 32, 46, 38);
+        return image;
     }
 
-    orderedItems() {
-        return [...this.items].sort((a, b) => a.focus - b.focus);
+    geometry(item) {
+        const mid = (item.start + item.end) / 2;
+        const labelRadius = 90 + 10 * item.focus;
+        return { mid, radius: 90, cx: 150, cy: 150, width: 42,
+            x: 150 + Math.cos(mid) * labelRadius, y: 150 + Math.sin(mid) * labelRadius };
     }
+
+    orderedItems() { return this.drawOrder || []; }
 
     paint() {
         const ctx = this.canvas.getContext('2d');
@@ -76,43 +96,30 @@ class BudgetChart {
             ctx.stroke();
             return;
         }
-        this.orderedItems().forEach(item => {
-            const g = this.geometry(item);
-            ctx.save();
+        // Paint every fixed sector first so no neighbouring sector covers a bubble.
+        this.items.forEach(item => {
             ctx.globalAlpha = item.opacity;
             ctx.fillStyle = item.color;
-            ctx.beginPath();
-            ctx.arc(g.cx, g.cy, g.radius + g.width / 2, item.start, item.end);
-            ctx.arc(g.cx, g.cy, g.radius - g.width / 2, item.end, item.start, true);
-            ctx.closePath();
-            // A rounded enlargement holds the label even when the actual share is tiny.
-            // Angular proportions and the percentage remain unchanged.
+            ctx.fill(item.path);
+        });
+        this.orderedItems().forEach(item => {
+            const g = this.geometry(item);
             if (item.focus > 0) {
-                ctx.moveTo(g.x + 32 * item.focus, g.y);
+                ctx.globalAlpha = item.focus;
+                ctx.fillStyle = item.color;
+                ctx.beginPath();
                 ctx.arc(g.x, g.y, 32 * item.focus, 0, Math.PI * 2);
-                ctx.closePath();
+                ctx.fill();
             }
-            ctx.fill();
-            ctx.restore();
             const fits = (item.end - item.start) * g.radius >= 56;
             const labelOpacity = fits ? 1 : item.focus;
             if (labelOpacity <= 0) return;
-            ctx.save();
             ctx.globalAlpha = labelOpacity * (item.opacity / 0.92);
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#111';
-            ctx.shadowColor = 'rgba(255,255,255,0.85)';
-            ctx.shadowBlur = 3;
-            const emojiSize = 18 + 6 * item.focus;
-            ctx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-            ctx.fillText(item.icon, g.x, g.y - (7 + 3 * item.focus), 32);
-            ctx.font = `600 ${11 + 2 * item.focus}px -apple-system, BlinkMacSystemFont, sans-serif`;
-            const percent = item.amount / this.total * 100;
-            const label = percent < 1 ? '<1%' : Math.round(percent) + '%';
-            ctx.fillText(label, g.x, g.y + (11 + 3 * item.focus), 38);
-            ctx.restore();
+            const size = 48 + 16 * item.focus;
+            // No emoji rasterization, font resizing or blurred text on animation frames.
+            ctx.drawImage(item.label, g.x - size / 2, g.y - size / 2, size, size);
         });
+        ctx.globalAlpha = 1;
     }
 
     selectAt(event) {
@@ -120,7 +127,7 @@ class BudgetChart {
         if (!rect.width || !rect.height) return;
         const x = (event.clientX - rect.left) * this.size / rect.width;
         const y = (event.clientY - rect.top) * this.size / rect.height;
-        const item = this.orderedItems().reverse().find(item => {
+        const item = [...this.orderedItems()].reverse().find(item => {
             const g = this.geometry(item);
             if (item.focus > 0 && Math.hypot(x - g.x, y - g.y) <= 32 * item.focus) return true;
             const distance = Math.hypot(x - g.cx, y - g.cy);
