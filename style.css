@@ -79,29 +79,46 @@ header h1 {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.tabs {
+/* Новые iOS вкладки */
+.tabs-wrapper {
     display: flex;
+    position: relative;
     background: #e5e5ea;
     border-radius: 8px;
     padding: 2px;
+    margin-bottom: 16px;
 }
 
-.tab {
+.tab-slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    height: calc(100% - 4px);
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+    transition: transform 0.25s cubic-bezier(0.3, 1, 0.3, 1);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.tabs-wrapper .tab {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 8px;
-    font-size: 15px;
-    border-radius: 6px;
+    padding: 8px 0;
+    font-size: 14px;
     font-weight: 600;
     color: #8e8e93;
-    transition: 0.2s;
+    transition: color 0.2s;
+    z-index: 2;
+    cursor: pointer;
+    text-align: center;
+    outline: none;
 }
 
-.tab.active {
-    background: #fff;
+.tabs-wrapper .tab.active {
     color: #000;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
 }
 
 input[type="text"], input[type="number"], input[type="date"], select {
@@ -114,6 +131,16 @@ input[type="text"], input[type="number"], input[type="date"], select {
     font-size: 17px;
     background: #f2f2f7;
     outline: none;
+    box-sizing: border-box;
+}
+
+/* Фикс вылезающей даты на iOS Safari */
+input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    display: block;
 }
 
 .form-group {

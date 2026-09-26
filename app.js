@@ -41,7 +41,6 @@ let analyticsType = 'expense';
 let analyticsPeriod = 'month';
 
 const form = document.getElementById('transaction-form');
-const tabs = document.querySelectorAll('.add-transaction .tab');
 const categorySelect = document.getElementById('category-select');
 const dateInput = document.getElementById('tx-date');
 const fromAccountLabel = document.getElementById('from-account-label');
@@ -59,7 +58,21 @@ function init() {
     updatePreviewColor();
     renderRecentColors();
     setCurrentDate();
+    updateSliders();
     updateUI();
+}
+
+function updateSliders() {
+    document.querySelectorAll('.tabs-wrapper').forEach(wrapper => {
+        const activeTab = wrapper.querySelector('.tab.active');
+        const slider = wrapper.querySelector('.tab-slider');
+        const tabs = Array.from(wrapper.querySelectorAll('.tab'));
+        if (activeTab && slider && tabs.length > 0) {
+            const index = tabs.indexOf(activeTab);
+            slider.style.width = `${100 / tabs.length}%`;
+            slider.style.transform = `translateX(${index * 100}%)`;
+        }
+    });
 }
 
 window.switchView = function(view) {
@@ -70,23 +83,44 @@ window.switchView = function(view) {
     document.getElementById('nav-main').classList.toggle('active', view === 'main');
     document.getElementById('nav-analytics').classList.toggle('active', view === 'analytics');
     
+    updateSliders();
     if (view === 'analytics') updateAnalytics();
 };
 
+document.querySelectorAll('#tx-tabs-wrapper .tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+        const wrapper = e.target.closest('.tabs-wrapper');
+        wrapper.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        currentType = e.target.dataset.type;
+
+        document.getElementById('to-account-group').style.display = currentType === 'transfer' ? 'block' : 'none';
+        document.getElementById('category-group').style.display = currentType === 'transfer' ? 'none' : 'block';
+        fromAccountLabel.innerText = currentType === 'income' ? 'Куда:' : 'Откуда:';
+        
+        renderCategories(categorySelect, currentType);
+        updateSliders();
+    });
+});
+
 document.querySelectorAll('.analytics-type-tab').forEach(btn => {
     btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.analytics-type-tab').forEach(t => t.classList.remove('active'));
+        const wrapper = e.target.closest('.tabs-wrapper');
+        wrapper.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         e.target.classList.add('active');
         analyticsType = e.target.dataset.type;
+        updateSliders();
         updateAnalytics();
     });
 });
 
 document.querySelectorAll('.analytics-period-tab').forEach(btn => {
     btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.analytics-period-tab').forEach(t => t.classList.remove('active'));
+        const wrapper = e.target.closest('.tabs-wrapper');
+        wrapper.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         e.target.classList.add('active');
         analyticsPeriod = e.target.dataset.period;
+        updateSliders();
         updateAnalytics();
     });
 });
@@ -109,20 +143,6 @@ document.getElementById('date-next').addEventListener('click', () => {
     const d = new Date(dateInput.value);
     d.setDate(d.getDate() + 1);
     dateInput.value = d.toISOString().split('T')[0];
-});
-
-tabs.forEach(tab => {
-    tab.addEventListener('click', (e) => {
-        tabs.forEach(t => t.classList.remove('active'));
-        e.target.classList.add('active');
-        currentType = e.target.dataset.type;
-
-        document.getElementById('to-account-group').style.display = currentType === 'transfer' ? 'block' : 'none';
-        document.getElementById('category-group').style.display = currentType === 'transfer' ? 'none' : 'block';
-        fromAccountLabel.innerText = currentType === 'income' ? 'Куда:' : 'Откуда:';
-        
-        renderCategories(categorySelect, currentType);
-    });
 });
 
 function getAccountName(id) {
@@ -268,7 +288,6 @@ function renderRecentColors() {
     });
 }
 
-// Управление счетами
 let editingAccountId = null;
 const accountModal = document.getElementById('account-modal');
 const accountNameInput = document.getElementById('account-name-input');
@@ -629,6 +648,8 @@ function isDateInAnalyticsPeriod(dateStr, period) {
         return txDate >= mon && txDate <= sun;
     } else if (period === 'month') {
         return txDate.getMonth() === today.getMonth() && txDate.getFullYear() === today.getFullYear();
+    } else if (period === 'year') {
+        return txDate.getFullYear() === today.getFullYear();
     }
     return true;
 }
@@ -850,11 +871,12 @@ function drawDoughnutChart(data, total) {
         const sliceAngle = (item.amount / total) * 2 * Math.PI;
         if (sliceAngle <= 0) return;
 
+        // Делаем цвета плотными (85% непрозрачности) для графика
         let strokeColor = '#ccc';
         if (item.color.startsWith('hsl')) {
-            strokeColor = item.color.replace(')', ', 0.35)').replace('hsl', 'hsla');
+            strokeColor = item.color.replace(')', ', 0.85)').replace('hsl', 'hsla');
         } else if (item.color.startsWith('#')) {
-            strokeColor = hexToRgbaStr(item.color, 0.35);
+            strokeColor = hexToRgbaStr(item.color, 0.85);
         } else {
             strokeColor = item.color;
         }
@@ -877,8 +899,9 @@ function drawDoughnutChart(data, total) {
             ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
             ctx.shadowBlur = 4;
             
-            ctx.font = '16px sans-serif';
-            ctx.fillText(item.icon, textX, textY - 8);
+            // Фикс шрифта для эмодзи
+            ctx.font = '20px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.fillText(item.icon, textX, textY - 10);
             
             ctx.fillStyle = '#000';
             ctx.font = 'bold 12px Montserrat';

@@ -27,10 +27,11 @@
             </section>
 
             <section class="add-transaction">
-                <div class="tabs">
-                    <button class="tab active" data-type="expense">Расход</button>
-                    <button class="tab" data-type="income">Доход</button>
-                    <button class="tab" data-type="transfer">Перевод</button>
+                <div class="tabs-wrapper" id="tx-tabs-wrapper">
+                    <div class="tab-slider"></div>
+                    <button type="button" class="tab active" data-type="expense">Расход</button>
+                    <button type="button" class="tab" data-type="income">Доход</button>
+                    <button type="button" class="tab" data-type="transfer">Перевод</button>
                 </div>
 
                 <form id="transaction-form">
@@ -87,15 +88,18 @@
         </div>
 
         <div id="analytics-view" style="display: none;">
-            <div class="tabs" style="margin-bottom: 16px;">
-                <button class="tab analytics-type-tab active" data-type="expense">Расходы</button>
-                <button class="tab analytics-type-tab" data-type="income">Доходы</button>
+            <div class="tabs-wrapper" id="analytics-type-wrapper" style="margin-bottom: 16px;">
+                <div class="tab-slider"></div>
+                <button type="button" class="tab analytics-type-tab active" data-type="expense">Расходы</button>
+                <button type="button" class="tab analytics-type-tab" data-type="income">Доходы</button>
             </div>
             
-            <div class="tabs" style="margin-bottom: 24px;">
-                <button class="tab analytics-period-tab" data-period="day">День</button>
-                <button class="tab analytics-period-tab" data-period="week">Неделя</button>
-                <button class="tab analytics-period-tab active" data-period="month">Месяц</button>
+            <div class="tabs-wrapper" id="analytics-period-wrapper" style="margin-bottom: 24px;">
+                <div class="tab-slider"></div>
+                <button type="button" class="tab analytics-period-tab" data-period="day">День</button>
+                <button type="button" class="tab analytics-period-tab" data-period="week">Неделя</button>
+                <button type="button" class="tab analytics-period-tab active" data-period="month">Месяц</button>
+                <button type="button" class="tab analytics-period-tab" data-period="year">Год</button>
             </div>
 
             <div class="chart-container">
