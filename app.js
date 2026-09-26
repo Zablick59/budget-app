@@ -40,6 +40,9 @@ let currentView = 'main';
 let analyticsType = 'expense';
 let analyticsPeriod = 'month';
 
+let currentChartData = [];
+let currentChartTotal = 0;
+
 const form = document.getElementById('transaction-form');
 const categorySelect = document.getElementById('category-select');
 const dateInput = document.getElementById('tx-date');
@@ -58,7 +61,7 @@ function init() {
     updatePreviewColor();
     renderRecentColors();
     setCurrentDate();
-    updateSliders();
+    setTimeout(updateSliders, 50);
     updateUI();
 }
 
@@ -66,14 +69,14 @@ function updateSliders() {
     document.querySelectorAll('.tabs-wrapper').forEach(wrapper => {
         const activeTab = wrapper.querySelector('.tab.active');
         const slider = wrapper.querySelector('.tab-slider');
-        const tabs = Array.from(wrapper.querySelectorAll('.tab'));
-        if (activeTab && slider && tabs.length > 0) {
-            const index = tabs.indexOf(activeTab);
-            slider.style.width = `${100 / tabs.length}%`;
-            slider.style.transform = `translateX(${index * 100}%)`;
+        if (activeTab && slider) {
+            slider.style.width = activeTab.offsetWidth + 'px';
+            slider.style.transform = `translateX(${activeTab.offsetLeft}px)`;
         }
     });
 }
+
+window.addEventListener('resize', updateSliders);
 
 window.switchView = function(view) {
     currentView = view;
@@ -83,7 +86,7 @@ window.switchView = function(view) {
     document.getElementById('nav-main').classList.toggle('active', view === 'main');
     document.getElementById('nav-analytics').classList.toggle('active', view === 'analytics');
     
-    updateSliders();
+    setTimeout(updateSliders, 10);
     if (view === 'analytics') updateAnalytics();
 };
 
@@ -698,18 +701,14 @@ function updateAnalytics() {
 
     let periodTxs = transactions.filter(t => t.type === analyticsType && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
     
+    // Считаем все данные для правильной отрисовки общей диаграммы
     let catSums = {};
     let catCounts = {};
-    let maxTx = null;
-    let minTx = null;
-
     periodTxs.forEach(t => {
         catSums[t.categoryId] = (catSums[t.categoryId] || 0) + t.amount;
         catCounts[t.categoryId] = (catCounts[t.categoryId] || 0) + 1;
-        
-        if (!maxTx || t.amount > maxTx.amount) maxTx = t;
-        if (!minTx || t.amount < minTx.amount) minTx = t;
     });
+    let totalSum = Object.values(catSums).reduce((a, b) => a + b, 0);
 
     const typeCats = categories[analyticsType] || [];
     const getCatName = (id) => {
@@ -717,51 +716,42 @@ function updateAnalytics() {
         return c ? c.name : 'Удалено';
     };
 
-    let filteredTxs = periodTxs;
-    if (isSingleCat) {
-        filteredTxs = periodTxs.filter(t => t.categoryId === catFilterVal);
-        
-        catSums = {};
-        catCounts = {};
-        maxTx = null;
-        minTx = null;
-        
-        filteredTxs.forEach(t => {
-            catSums[t.categoryId] = (catSums[t.categoryId] || 0) + t.amount;
-            catCounts[t.categoryId] = (catCounts[t.categoryId] || 0) + 1;
-            
-            if (!maxTx || t.amount > maxTx.amount) maxTx = t;
-            if (!minTx || t.amount < minTx.amount) minTx = t;
-        });
-    }
-
-    let totalSum = Object.values(catSums).reduce((a, b) => a + b, 0);
-    document.getElementById('analytics-total-sum').innerText = totalSum;
+    // Статистика меняется в зависимости от того, выбрана ли конкретная категория
+    let statsTxs = isSingleCat ? periodTxs.filter(t => t.categoryId === catFilterVal) : periodTxs;
+    let sMaxTx = null;
+    let sMinTx = null;
+    let sFreqCounts = {};
+    
+    statsTxs.forEach(t => {
+        if (!sMaxTx || t.amount > sMaxTx.amount) sMaxTx = t;
+        if (!sMinTx || t.amount < sMinTx.amount) sMinTx = t;
+        sFreqCounts[t.categoryId] = (sFreqCounts[t.categoryId] || 0) + 1;
+    });
 
     let mostFreqCatId = null;
     let maxFreq = 0;
-    for (const [catId, count] of Object.entries(catCounts)) {
+    for (const [catId, count] of Object.entries(sFreqCounts)) {
         if (count > maxFreq) {
             maxFreq = count;
             mostFreqCatId = catId;
         }
     }
 
-    document.getElementById('stat-max').innerText = maxTx ? maxTx.amount + ' ₽' : '-';
-    document.getElementById('stat-max-cat').innerText = maxTx ? getCatName(maxTx.categoryId) : '';
-    
-    document.getElementById('stat-min').innerText = minTx ? minTx.amount + ' ₽' : '-';
-    document.getElementById('stat-min-cat').innerText = minTx ? getCatName(minTx.categoryId) : '';
-    
+    document.getElementById('analytics-total-sum').innerText = totalSum;
+    document.getElementById('stat-max').innerText = sMaxTx ? sMaxTx.amount + ' ₽' : '-';
+    document.getElementById('stat-max-cat').innerText = sMaxTx ? getCatName(sMaxTx.categoryId) : '';
+    document.getElementById('stat-min').innerText = sMinTx ? sMinTx.amount + ' ₽' : '-';
+    document.getElementById('stat-min-cat').innerText = sMinTx ? getCatName(sMinTx.categoryId) : '';
     document.getElementById('stat-freq').innerText = mostFreqCatId ? getCatName(mostFreqCatId) : '-';
     document.getElementById('stat-freq-count').innerText = maxFreq > 0 ? `${maxFreq} ${getTxWord(maxFreq)}` : '';
 
+    // Данные для графика (всегда передаем все категории)
     let chartData = Object.entries(catSums).map(([id, amount]) => {
-        const cat = typeCats.find(c => c.id === id) || { name: 'Удалено', icon: '❓', color: '#8E8E93' };
+        const cat = typeCats.find(c => c.id === id) || { name: 'Удалено', icon: '❓', color: '#8E8E93', id: id };
         return { ...cat, amount };
     });
     
-    drawDoughnutChart(chartData, totalSum);
+    drawDoughnutChart(chartData, totalSum, catFilterVal);
 
     const listEl = document.getElementById('analytics-categories-list');
     listEl.innerHTML = '';
@@ -794,7 +784,7 @@ function updateAnalytics() {
             listEl.appendChild(li);
         });
     } else {
-        let sortedTxs = [...filteredTxs];
+        let sortedTxs = [...statsTxs];
         if (sortVal === 'asc') sortedTxs.sort((a, b) => a.amount - b.amount);
         else if (sortVal === 'desc') sortedTxs.sort((a, b) => b.amount - a.amount);
         else if (sortVal === 'date-desc') sortedTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -837,7 +827,7 @@ function updateAnalytics() {
     }
 }
 
-function drawDoughnutChart(data, total) {
+function drawDoughnutChart(data, total, selectedId = 'all') {
     const canvas = document.getElementById('analytics-chart');
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -853,12 +843,15 @@ function drawDoughnutChart(data, total) {
 
     const centerX = cssSize / 2;
     const centerY = cssSize / 2;
-    const radius = 85;
+    const baseRadius = 85;
     const lineWidth = 40;
+
+    currentChartData = data;
+    currentChartTotal = total;
 
     if (total === 0 || data.length === 0) {
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.arc(centerX, centerY, baseRadius, 0, 2 * Math.PI);
         ctx.strokeStyle = '#e5e5ea';
         ctx.lineWidth = lineWidth;
         ctx.stroke();
@@ -866,17 +859,24 @@ function drawDoughnutChart(data, total) {
     }
 
     let startAngle = -0.5 * Math.PI;
+    const isAnySelected = selectedId !== 'all';
 
     data.forEach(item => {
         const sliceAngle = (item.amount / total) * 2 * Math.PI;
         if (sliceAngle <= 0) return;
 
-        // Делаем цвета плотными (85% непрозрачности) для графика
+        item.startAngle = startAngle;
+        item.endAngle = startAngle + sliceAngle;
+
+        const isSelected = item.id === selectedId;
+        const radius = isAnySelected ? (isSelected ? 95 : 80) : baseRadius;
+        const alpha = isAnySelected ? (isSelected ? 0.95 : 0.25) : 0.85;
+
         let strokeColor = '#ccc';
         if (item.color.startsWith('hsl')) {
-            strokeColor = item.color.replace(')', ', 0.85)').replace('hsl', 'hsla');
+            strokeColor = item.color.replace(/\)/, `, ${alpha})`).replace('hsl', 'hsla');
         } else if (item.color.startsWith('#')) {
-            strokeColor = hexToRgbaStr(item.color, 0.85);
+            strokeColor = hexToRgbaStr(item.color, alpha);
         } else {
             strokeColor = item.color;
         }
@@ -884,10 +884,10 @@ function drawDoughnutChart(data, total) {
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
         ctx.strokeStyle = strokeColor; 
-        ctx.lineWidth = lineWidth;
+        ctx.lineWidth = isSelected ? 44 : lineWidth;
         ctx.stroke();
 
-        if (sliceAngle > 0.4) {
+        if ((!isAnySelected && sliceAngle > 0.4) || isSelected) {
             const midAngle = startAngle + sliceAngle / 2;
             const textX = centerX + Math.cos(midAngle) * radius;
             const textY = centerY + Math.sin(midAngle) * radius;
@@ -895,11 +895,9 @@ function drawDoughnutChart(data, total) {
             
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            
             ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
             ctx.shadowBlur = 4;
             
-            // Фикс шрифта для эмодзи
             ctx.font = '20px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
             ctx.fillText(item.icon, textX, textY - 10);
             
@@ -913,6 +911,35 @@ function drawDoughnutChart(data, total) {
         startAngle += sliceAngle;
     });
 }
+
+document.getElementById('analytics-chart').addEventListener('click', function(e) {
+    if (!currentChartData || currentChartTotal === 0) return;
+    const rect = this.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = 125;
+    const centerY = 125;
+    
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 50 && distance < 125) {
+        let angle = Math.atan2(dy, dx);
+        if (angle < -0.5 * Math.PI) angle += 2 * Math.PI;
+        
+        const clickedItem = currentChartData.find(item => angle >= item.startAngle && angle <= item.endAngle);
+        if (clickedItem) {
+            const filterEl = document.getElementById('analytics-cat-filter');
+            if (filterEl.value === clickedItem.id) {
+                filterEl.value = 'all'; 
+            } else {
+                filterEl.value = clickedItem.id;
+            }
+            updateAnalytics();
+        }
+    }
+});
 
 const editModal = document.getElementById('edit-modal');
 const editCategorySelect = document.getElementById('edit-category-select');
