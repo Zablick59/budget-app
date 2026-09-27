@@ -923,7 +923,7 @@ function updateAnalytics() {
         chartData.forEach(item => {
             const li = document.createElement('li');
             const styles = getStyleForColor(item.color);
-            const pct = totalSum > 0 ? Math.round((item.amount / totalSum) * 100) : 0;
+            const pct = totalSum > 0 ? (item.amount / totalSum) * 100 : 0;
             
             li.onclick = () => {
                 catFilterEl.value = item.id;
@@ -939,7 +939,7 @@ function updateAnalytics() {
                         <span>${escapeHTML(item.name)}</span>
                         <span style="color: #000;">${money(item.amount)} ₽</span>
                     </div>
-                    <div class="tx-details">Доля: ${pct}%</div>
+                    <div class="tx-details">Доля: ${pct.toFixed(1).replace('.', ',')}%</div>
                 </div>
             `;
             listEl.appendChild(li);

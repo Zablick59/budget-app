@@ -29,7 +29,7 @@ class BudgetChart {
             next.path.arc(150, 150, 69, end, angle, true);
             next.path.closePath();
             const percent = total > 0 ? item.amount / total * 100 : 0;
-            const label = percent < 1 ? '<1%' : Math.round(percent) + '%';
+            const label = percent.toFixed(1).replace('.', ',') + '%';
             const dpr = window.devicePixelRatio || 1;
             next.labelKey = JSON.stringify([item.icon, label, dpr]);
             next.label = previous?.labelKey === next.labelKey ? previous.label : this.makeLabel(item.icon, label, dpr);
@@ -64,7 +64,7 @@ class BudgetChart {
         ctx.font = '24px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
         ctx.fillText(icon, 32, 22, 32);
         ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText(percent, 32, 46, 38);
+        ctx.fillText(percent, 32, 46, 44);
         return image;
     }
 

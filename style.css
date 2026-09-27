@@ -167,6 +167,7 @@ input[type="text"], input[type="number"], input[type="date"], select {
 
 .category-flex {
     display: flex;
+    align-items: stretch;
     gap: 8px;
 }
 
@@ -187,6 +188,12 @@ input[type="text"], input[type="number"], input[type="date"], select {
     cursor: pointer;
     padding: 0;
     flex-shrink: 0;
+}
+
+.category-flex .icon-btn {
+    height: auto;
+    min-height: 44px;
+    align-self: stretch;
 }
 
 .icon-btn:active {
