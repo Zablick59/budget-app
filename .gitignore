@@ -1,0 +1,11 @@
+# Publish only the files required to run the application.
+# Tests, update.command, Finder metadata and local backups stay on this computer.
+/*
+!/.gitignore
+!/index.html
+!/style.css
+!/app.js
+!/data.js
+!/chart.js
+!/manifest.json
+!/icon.svg
