@@ -18,15 +18,45 @@ body {
     padding-bottom: 90px;
 }
 
-header {
-    margin-top: 20px;
-    margin-bottom: 20px;
+.brand-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0;
+    padding: 18px 14px;
+    border-radius: 18px;
+    background: #1c1c1e;
+    color: #fff;
 }
 
-header h1 {
-    font-size: 28px;
+.brand-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+}
+
+.brand-heading {
+    min-width: 0;
+}
+
+.brand-header h1 {
+    font-size: 21px;
     font-weight: 700;
-    text-transform: uppercase;
+    letter-spacing: -0.65px;
+    line-height: 1.18;
+}
+
+.brand-accent {
+    width: 32px;
+    height: 3px;
+    margin-top: 9px;
+    border-radius: 3px;
+    background: #34c759;
+}
+
+@media (max-width: 360px) {
+    .brand-header h1 { font-size: 19px; }
 }
 
 .accounts-card {
