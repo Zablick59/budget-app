@@ -19,44 +19,49 @@ body {
 }
 
 .brand-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     margin: 20px 0;
-    padding: 18px 14px;
-    border-radius: 18px;
-    background: #1c1c1e;
-    color: #fff;
+    padding: 8px 0;
+    color: #1c1c1e;
+}
+
+.brand-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 100%;
+    color: inherit;
+    text-decoration: none;
 }
 
 .brand-icon {
     display: block;
     flex-shrink: 0;
-    width: 52px;
-    height: 52px;
-}
-
-.brand-heading {
-    min-width: 0;
+    width: 48px;
+    height: 48px;
 }
 
 .brand-header h1 {
-    font-size: 21px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 22px;
     font-weight: 700;
     letter-spacing: -0.65px;
     line-height: 1.18;
+    white-space: nowrap;
 }
 
-.brand-accent {
-    width: 32px;
-    height: 3px;
-    margin-top: 9px;
-    border-radius: 3px;
+.brand-dot {
+    flex: 0 0 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
     background: #34c759;
 }
 
 @media (max-width: 360px) {
     .brand-header h1 { font-size: 19px; }
+    .brand-icon { width: 44px; height: 44px; }
 }
 
 .accounts-card {

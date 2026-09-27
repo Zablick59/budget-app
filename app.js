@@ -94,6 +94,12 @@ window.switchView = function(view) {
     if (view === 'analytics') updateAnalytics();
 };
 
+document.getElementById('brand-home').addEventListener('click', event => {
+    event.preventDefault();
+    switchView('main');
+    window.scrollTo(0, 0);
+});
+
 document.querySelectorAll('#tx-tabs-wrapper .tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
         const wrapper = e.target.closest('.tabs-wrapper');
