@@ -87,7 +87,42 @@ const FinanceData = (() => {
             requireValue(typeof value === 'boolean', 'Некорректные настройки видимости.');
             visibility[key] = value;
         }
-        return { schemaVersion: 2, accounts, categories, transactions,
+        const sourceWish = raw.wishlist ?? { categories: [], items: [] };
+        requireValue(isObject(sourceWish) && Array.isArray(sourceWish.categories) && Array.isArray(sourceWish.items), 'Некорректный виш-лист.');
+        const wishText = (v, label, limit, empty = false) => {
+            const text = string(v, label, empty);
+            requireValue(text.length <= limit, label + ': слишком длинный текст.');
+            return text;
+        };
+        const wishCategories = unique(sourceWish.categories.map(c => {
+            requireValue(isObject(c), 'Некорректная категория виш-листа.');
+            return { id: string(c.id, 'Категория виш-листа'), name: wishText(c.name, 'Название', 80),
+                icon: wishText(c.icon ?? '', 'Эмодзи', 32, true), color: color(c.color),
+                ...(c.sourceExpenseId === undefined ? {} : { sourceExpenseId: string(c.sourceExpenseId, 'Исходная категория расходов') }) };
+        }), 'Категории виш-листа');
+        const wishItems = unique(sourceWish.items.map(item => {
+            requireValue(isObject(item), 'Некорректная покупка в виш-листе.');
+            requireValue(['wish', 'candidate', 'planned'].includes(item.status), 'Неизвестный статус покупки.');
+            requireValue(['unknown', 'exact', 'range'].includes(item.priceType), 'Неизвестный вид цены.');
+            let priceMin = null, priceMax = null;
+            if (item.priceType !== 'unknown') {
+                priceMin = numeric(item.priceMin, 'Цена');
+                priceMax = item.priceType === 'range' ? numeric(item.priceMax, 'Цена') : priceMin;
+                requireValue(priceMin >= 0 && priceMax >= priceMin, 'Укажите цены от меньшей к большей.');
+            }
+            const link = wishText(item.link ?? '', 'Ссылка', 2048, true);
+            requireValue(!link || /^https?:\/\/[^\s/?#]+(?:[/?#][^\s]*)?$/i.test(link), 'Ссылка должна начинаться с https:// или http://.');
+            const photo = item.photo ?? '';
+            requireValue(typeof photo === 'string' && (!photo || (photo.length <= 260000 && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(photo))), 'Некорректное или слишком большое фото.');
+            requireValue(item.categoryId === null || wishCategories.some(c => c.id === item.categoryId), 'Категория покупки не найдена.');
+            return { id: string(item.id, 'Покупка'), name: wishText(item.name, 'Название покупки', 120),
+                status: item.status, categoryId: item.categoryId, icon: wishText(item.icon ?? '', 'Эмодзи', 32, true),
+                priceType: item.priceType, priceMin, priceMax, link, photo,
+                note: wishText(item.note ?? '', 'Заметка', 1000, true) };
+        }), 'Виш-лист');
+        requireValue(sourceWish.recentColors === undefined || Array.isArray(sourceWish.recentColors), 'Некорректная палитра виш-листа.');
+        return { schemaVersion: 2, accounts, categories, transactions, wishlist: { categories: wishCategories, items: wishItems,
+            recentColors: (sourceWish.recentColors ?? defaultColors).map(color).slice(0, 5) },
             recentColors: (raw.recentColors ?? defaultColors).map(color).slice(0, 5), visibility };
     }
     function defaults() {

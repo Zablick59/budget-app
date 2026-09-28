@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Мой Бюджет</title>
+    <title>Мои финансы</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
@@ -148,18 +148,57 @@
 
             <ul id="analytics-categories-list" class="analytics-list"></ul>
         </div>
+        <section id="wishlist-view" style="display: none;" aria-labelledby="wishlist-title">
+            <div class="wish-heading"><div><h2 id="wishlist-title">Виш-лист</h2><p>От идеи до покупки</p></div><button type="button" id="wish-add" class="submit-btn">＋ Добавить</button></div>
+            <div class="wish-toolbar"><select id="wish-filter" aria-label="Категория виш-листа"><option value="all">Все категории</option></select><button type="button" id="wish-manage" class="btn-secondary">Категории</button></div>
+            <p class="wish-hint">Зажмите карточку, чтобы перенести её в другой раздел.</p>
+            <div id="wish-groups"></div>
+            <p id="wish-drag-announcement" class="visually-hidden" aria-live="polite"></p>
+        </section>
     </div>
 
     <nav class="bottom-nav">
-        <div class="nav-item active" id="nav-main" onclick="switchView('main')">
+        <button type="button" class="nav-item active" id="nav-main" onclick="switchView('main')" aria-current="page">
             <div class="nav-icon">💳</div>
             <span>Главная</span>
-        </div>
-        <div class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
+        </button>
+        <button type="button" class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
             <div class="nav-icon">📊</div>
             <span>Аналитика</span>
-        </div>
+        </button>
+        <button type="button" class="nav-item" id="nav-wishlist" onclick="switchView('wishlist')"><div class="nav-icon">✨</div><span>Виш-лист</span></button>
     </nav>
+
+    <dialog id="wish-dialog" class="wish-dialog" aria-labelledby="wish-editor-title">
+        <form id="wish-form">
+            <div class="wish-dialog-heading"><h3 id="wish-editor-title">Новая покупка</h3><button type="button" class="wish-close" data-wish-close aria-label="Закрыть" autofocus>✕</button></div>
+            <div class="wish-photo-row">
+                <div id="wish-photo-preview" class="wish-photo-preview"></div>
+                <p class="wish-hint">Из галереи. Или выберите эмодзи ниже.</p>
+                <div class="wish-photo-actions"><label for="wish-photo" class="btn-secondary wish-upload">Выбрать фото<input id="wish-photo" type="file" accept="image/*"></label><button type="button" id="wish-photo-remove" class="wish-text-button wish-danger" hidden>Убрать фото</button></div>
+            </div>
+            <label for="wish-name">Название</label><input id="wish-name" type="text" maxlength="120" placeholder="Например, наушники" required>
+            <div class="wish-two-fields"><div><label for="wish-icon">Эмодзи <span class="wish-optional">необязательно</span></label><input id="wish-icon" type="text" maxlength="32" placeholder="🎧"></div><div><label for="wish-status">Раздел</label><select id="wish-status"><option value="wish">Хотелки</option><option value="candidate">Кандидаты</option><option value="planned">Запланировано</option></select></div></div>
+            <label for="wish-category">Категория виш-листа</label><select id="wish-category"></select>
+            <fieldset id="wish-new-category" hidden>
+                <legend>Новая категория виш-листа</legend>
+                <div class="wish-category-fields"><div><label for="wish-new-icon">Эмодзи</label><input id="wish-new-icon" type="text" maxlength="32" placeholder="📌"></div><div><label for="wish-new-name">Название</label><input id="wish-new-name" type="text" maxlength="80" placeholder="Например, техника"></div></div>
+                <div id="wish-new-colors"></div>
+                <p class="wish-hint">Останется только в виш-листе.</p>
+            </fieldset>
+            <label for="wish-price-type">Цена</label><select id="wish-price-type"><option value="unknown">Пока неизвестна</option><option value="exact">Точная сумма</option><option value="range">Диапазон от / до</option></select>
+            <div id="wish-price-fields" class="wish-two-fields" hidden><div><label id="wish-price-min-label" for="wish-price-min">Сумма, ₽</label><input id="wish-price-min" type="text" inputmode="decimal" placeholder="20 000"></div><div id="wish-price-max-wrap" hidden><label for="wish-price-max">До, ₽</label><input id="wish-price-max" type="text" inputmode="decimal" placeholder="25 000"></div></div>
+            <label for="wish-link">Ссылка на товар <span class="wish-optional">необязательно</span></label><input id="wish-link" type="text" inputmode="url" maxlength="2048" placeholder="https://…" autocapitalize="off" spellcheck="false">
+            <label for="wish-note">Заметка</label><textarea id="wish-note" rows="2" maxlength="1000" placeholder="Цвет, размер, когда планируете купить…"></textarea>
+            <p id="wish-error" class="wish-error" role="alert" hidden></p>
+            <div class="wish-dialog-actions"><button type="button" id="wish-delete" class="btn-secondary wish-danger" hidden>Удалить</button><button type="submit" id="wish-save" class="submit-btn">Сохранить</button></div>
+        </form>
+    </dialog>
+    <dialog id="wish-categories-dialog" class="wish-dialog" aria-labelledby="wish-categories-title">
+        <div class="wish-dialog-heading"><h3 id="wish-categories-title">Категории виш-листа</h3><button type="button" class="wish-close" data-wish-close aria-label="Закрыть" autofocus>✕</button></div>
+        <p class="wish-hint">Здесь — ваши категории виш-листа. Категорию из расходов можно выбрать при добавлении покупки.</p><div id="wish-category-list"></div>
+        <form id="wish-category-form"><h4 id="wish-category-form-title">Новая категория</h4><div class="wish-category-fields"><div><label for="wish-category-icon">Эмодзи</label><input id="wish-category-icon" type="text" maxlength="32" placeholder="📌"></div><div><label for="wish-category-name">Название</label><input id="wish-category-name" type="text" maxlength="80" required placeholder="Например, техника"></div></div><div id="wish-category-colors"></div><div class="wish-dialog-actions"><button id="wish-category-reset" type="button" class="btn-secondary" hidden>Отмена</button><button type="submit" class="submit-btn">Сохранить категорию</button></div></form>
+    </dialog>
 
     <div id="account-modal" class="modal">
         <div class="modal-content">
@@ -248,5 +287,6 @@
     <script src="data.js"></script>
     <script src="chart.js"></script>
     <script src="app.js"></script>
+    <script src="wishlist.js"></script>
 </body>
 </html>

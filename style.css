@@ -403,7 +403,7 @@ input[type="text"], input[type="number"], input[type="date"], select {
     flex: 1;
 }
 
-#hue-slider {
+#hue-slider, .wish-hue {
     -webkit-appearance: none;
     width: 100%;
     height: 24px;
@@ -413,7 +413,7 @@ input[type="text"], input[type="number"], input[type="date"], select {
     margin: 8px 0;
 }
 
-#hue-slider::-webkit-slider-thumb {
+#hue-slider::-webkit-slider-thumb, .wish-hue::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 28px;
@@ -473,6 +473,8 @@ input[type="text"], input[type="number"], input[type="date"], select {
 }
 
 .nav-item {
+    border: 0;
+    background: transparent;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -724,3 +726,126 @@ input, select, .form-group, .modal-flex-row > *, .tx-info, .stat-card {
     font-size: 25px;
     cursor: pointer;
 }
+
+/* Wishlist: independent categories, collapsible sections and local photo storage. */
+#wishlist-view [hidden], .wish-dialog [hidden] { display: none !important; }
+.wish-heading, .wish-toolbar, .wish-dialog-heading, .wish-dialog-actions, .wish-photo-row { display: flex; align-items: center; gap: 12px; }
+.wish-heading { justify-content: space-between; margin-bottom: 20px; }
+.wish-heading h2 { font-size: 25px; letter-spacing: -.6px; }
+.wish-heading p { margin-top: 5px; color: #8e8e93; font-size: 13px; }
+.wish-heading .submit-btn { width: auto; padding: 12px 14px; font-size: 14px; }
+.wish-toolbar { margin-bottom: 22px; }
+.wish-toolbar select { flex: 1; margin: 0; font-size: 14px; }
+.wish-toolbar .btn-secondary { padding: 12px; font-size: 13px; }
+.wish-group { margin-bottom: 22px; }
+.wish-group summary { display: flex; gap: 9px; align-items: center; cursor: pointer; font-size: 16px; font-weight: 700; padding: 8px 2px 14px; list-style: none; }
+.wish-group summary::-webkit-details-marker { display: none; }
+.wish-count { border-radius: 20px; background: #e5e5ea; min-width: 25px; padding: 4px 7px; font-size: 12px; text-align: center; }
+.wish-chevron { margin-left: auto; color: #8e8e93; transform: rotate(-90deg); transition: transform .18s; }
+.wish-group[open] .wish-chevron { transform: rotate(0); }
+.wish-empty { background: #fff; border-radius: 16px; padding: 22px 18px; font-size: 13px; line-height: 1.5; color: #8e8e93; }
+.wish-empty .wish-text-button { margin-top: 9px; }
+.wish-text-button { background: none; border: 0; color: #007aff; font-size: 13px; padding: 8px 0; cursor: pointer; font-weight: 600; }
+.wish-card { background: #fff; border-radius: 16px; box-shadow: 0 2px 8px #00000006; overflow: hidden; margin-bottom: 12px; }
+.wish-card-main { display: grid; grid-template-columns: 62px minmax(0, 1fr) minmax(82px, auto); align-items: center; gap: 11px; width: 100%; background: transparent; border: 0; padding: 16px 13px; text-align: left; color: inherit; cursor: pointer; }
+.wish-card-media { width: 62px; height: 70px; display: flex; align-items: center; justify-content: center; font-size: 32px; background: #f2f2f7; border-radius: 12px; overflow: hidden; }
+.wish-card-media img, .wish-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.wish-card-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.wish-card-info strong { font-size: 14px; line-height: 1.35; }
+.wish-card-category { font-size: 10px; color: #65656c; }
+.wish-card-note { font-size: 11px; line-height: 1.4; color: #8e8e93; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wish-card-price { font-size: 17px; font-weight: 700; display: flex; flex-direction: column; align-items: flex-end; max-width: 150px; overflow-wrap: anywhere; text-align: right; line-height: 1.4; }
+.wish-price-to { font-size: 14px; }
+.wish-price-unknown { color: #8e8e93; font-size: 11px; font-weight: 400; }
+.wish-card-footer { display: flex; align-items: center; gap: 8px; border-top: 1px solid #f2f2f7; padding: 7px 12px; }
+.wish-card-status { width: auto; max-width: 65%; height: 32px; background: #f2f2f7; font-size: 11px; font-weight: 600; border: 0; margin: 0 auto 0 0; padding: 0 8px; }
+.wish-card-link { font-size: 12px; text-decoration: none; color: #007aff; white-space: nowrap; }
+.wish-edit-button { border: 0; background: transparent; color: #8e8e93; min-width: 32px; height: 32px; font-size: 22px; cursor: pointer; }
+.wish-dialog { border: 0; border-radius: 20px; padding: 22px; width: calc(100% - 24px); max-width: 460px; max-height: 90vh; max-height: 90dvh; margin: auto; overflow-y: auto; overscroll-behavior: contain; color: #1c1c1e; background: white; }
+.wish-dialog::backdrop { background: #0006; }
+body:has(.wish-dialog[open]) { overflow: hidden; }
+.wish-dialog-heading { justify-content: space-between; margin-bottom: 18px; }
+.wish-dialog-heading h3 { font-size: 18px; }
+.wish-close { background: #f2f2f7; color: #636366; border: 0; border-radius: 50%; width: 32px; height: 32px; flex-shrink: 0; cursor: pointer; }
+.wish-dialog label { display: block; font-size: 13px; margin-bottom: 7px; color: #636366; }
+.wish-dialog input, .wish-dialog select { font-size: 16px; }
+.wish-dialog textarea { width: 100%; resize: vertical; min-height: 68px; max-height: 180px; padding: 12px; font-size: 16px; border: 1px solid #e5e5ea; border-radius: 8px; background: #f2f2f7; }
+.wish-optional { font-weight: 400; font-size: 10px; color: #8e8e93; }
+.wish-two-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.wish-two-fields > div { min-width: 0; display: flex; flex-direction: column; }
+.wish-two-fields label { flex: 1; }
+.wish-photo-row { margin-bottom: 20px; }
+.wish-photo-preview { display: flex; width: 76px; height: 86px; flex-shrink: 0; border-radius: 14px; background: #f2f2f7; align-items: center; justify-content: center; font-size: 38px; overflow: hidden; }
+.wish-dialog .wish-upload { position: relative; overflow: hidden; display: inline-block; color: #007aff; font-weight: 600; padding: 10px 12px; cursor: pointer; }
+.wish-upload input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.wish-hint { color: #8e8e93; font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+.wish-photo-row .wish-hint { margin: 4px 0 0; }
+.wish-dialog-actions { margin-top: 18px; }
+.wish-dialog-actions .submit-btn { flex: 1; }
+.wish-dialog-actions .btn-secondary { padding: 12px; }
+.wish-danger { color: #d63031; }
+.wish-error { color: #bc2222; background: #fff0ef; border-radius: 8px; font-size: 13px; line-height: 1.4; padding: 10px; margin-top: 12px; }
+.wish-dialog input:focus-visible, .wish-dialog select:focus-visible, .wish-dialog textarea:focus-visible { outline: 2px solid #007aff; outline-offset: 1px; }
+.wish-dialog button:disabled { opacity: .5; cursor: wait; }
+.wish-dialog fieldset { border: 1px solid #e5e5ea; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+.wish-dialog legend { font-size: 12px; padding: 0 5px; color: #636366; }
+.wish-category-fields { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+.wish-category-fields input { padding: 0 10px; margin: 0; }
+.wish-category-fields > div { min-width: 0; }
+.wish-dialog input[type=color] { width: 100%; height: 44px; border: 1px solid #e5e5ea; border-radius: 8px; padding: 4px; background: #f2f2f7; }
+.wish-category-row { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f2f2f7; }
+.wish-category-row button { border: 0; background: none; padding: 10px 0; font-size: 14px; text-align: left; cursor: pointer; }
+.wish-category-row button:first-child { flex: 1; color: #1c1c1e; overflow-wrap: anywhere; }
+.wish-category-row button:last-child { padding: 10px; }
+.wish-category-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+#wish-category-form { margin-top: 22px; }
+#wish-category-form h4 { margin-bottom: 12px; }
+@media (max-width: 360px) {
+    .wish-card-main { grid-template-columns: 45px minmax(0, 1fr) minmax(65px, auto); gap: 8px; padding: 12px 10px; }
+    .wish-card-media { width: 45px; height: 56px; font-size: 26px; }
+    .wish-card-price { font-size: 14px; max-width: 120px; }
+    .wish-price-to { font-size: 12px; }
+    .wish-card-info strong { font-size: 13px; }
+    .wish-dialog { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .wish-chevron { transition: none; } }
+
+/* Inset chevrons retain native select menus, including on iPhone. */
+#wishlist-view select, .wish-dialog select {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23787880' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 14px 14px;
+}
+.wish-color-preview { display: flex; align-items: center; gap: 12px; margin: 16px 0; min-width: 0; }
+.wish-color-preview .cat-icon { width: 52px; height: 52px; flex: 0 0 52px; font-size: 27px; margin: 0; }
+.wish-color-preview > span:last-child { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.wish-palette-label { margin: 12px 0 8px; font-size: 13px; color: #636366; }
+.wish-color-swatch { padding: 0; flex-shrink: 0; }
+.wish-color-swatch[aria-pressed=true] { border-color: #1c1c1e; }
+.wish-hue { display: block; border: 0; padding: 0; }
+.wish-hue::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 2px solid #ccc; box-shadow: 0 2px 5px #0003; }
+.wish-hue:focus-visible, .wish-color-swatch:focus-visible { outline: 2px solid #007aff; outline-offset: 3px; }
+#wish-new-category .wish-hint { margin: 10px 0 0; }
+
+.wish-photo-row { display: grid; grid-template-columns: 76px minmax(0, 1fr); }
+.wish-photo-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.wish-dialog .wish-photo-actions .wish-upload,
+.wish-photo-actions #wish-photo-remove { display: flex; align-items: center; justify-content: center; min-height: 44px; flex: 1; padding: 10px 6px; margin: 0; font-size: 13px; line-height: 20px; white-space: nowrap; }
+.wish-photo-actions #wish-photo-remove { color: #d63031; border-radius: 8px; }
+.wish-photo-actions #wish-photo-remove:hover { background: #fff0ef; }
+.wish-photo-actions .wish-upload:focus-within { outline: 2px solid #007aff; outline-offset: 2px; }
+.wish-card-main { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.wish-card-media img { -webkit-user-drag: none; }
+.wish-group { border-radius: 16px; transition: background-color .15s, box-shadow .15s; }
+.wish-group.wish-drop-target { background: #e0edff; box-shadow: 0 0 0 3px #007aff66; }
+.wish-drop-target > summary { color: #0065d5; }
+.wish-drop-target .wish-count { background: #c4ddff; }
+.wish-drag-source { opacity: .3; }
+.wish-drag-ghost { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none; border-radius: 16px; background: #fff; box-shadow: 0 14px 36px #0003; will-change: transform; transform-origin: center; overflow: hidden; }
+.wish-dragging, .wish-dragging * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) { .wish-group { transition: none; } }

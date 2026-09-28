@@ -1,12 +1,12 @@
-let { transactions, categories, accounts, recentColors, visibility } = FinanceData.load();
+let { transactions, categories, accounts, recentColors, visibility, wishlist } = FinanceData.load();
 const money = FinanceData.format;
 const cents = FinanceData.cents;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-function currentData() { return { transactions, categories, accounts, recentColors, visibility }; }
+function currentData() { return { transactions, categories, accounts, recentColors, visibility, wishlist }; }
 function persistChanges(patch, restoring = false) {
     try {
         const saved = FinanceData.save({ ...currentData(), ...patch }, restoring);
-        ({ transactions, categories, accounts, recentColors, visibility } = saved);
+        ({ transactions, categories, accounts, recentColors, visibility, wishlist } = saved);
         document.getElementById('storage-notice').hidden = true;
         return true;
     } catch (error) {
@@ -86,9 +86,13 @@ window.switchView = function(view) {
     currentView = view;
     document.getElementById('main-view').style.display = view === 'main' ? 'block' : 'none';
     document.getElementById('analytics-view').style.display = view === 'analytics' ? 'block' : 'none';
+    document.getElementById('wishlist-view').style.display = view === 'wishlist' ? 'block' : 'none';
     
     document.getElementById('nav-main').classList.toggle('active', view === 'main');
     document.getElementById('nav-analytics').classList.toggle('active', view === 'analytics');
+    document.getElementById('nav-wishlist').classList.toggle('active', view === 'wishlist');
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.setAttribute('aria-current', item.classList.contains('active') ? 'page' : 'false'));
+    if (view === 'wishlist') window.WishlistUI?.render();
     
     setTimeout(updateSliders, 10);
     if (view === 'analytics') updateAnalytics();
@@ -1102,11 +1106,13 @@ document.getElementById('import-file').addEventListener('change', async function
     if (!file) return;
     try {
         const imported = FinanceData.normalize(JSON.parse((await file.text()).replace(/^\uFEFF/, '')));
-        if (!confirm(`Заменить текущие данные резервной копией? В файле: ${imported.transactions.length} операций, ${imported.accounts.length} счетов.`)) return;
+        if (!confirm(`Заменить текущие данные резервной копией? В файле: ${imported.transactions.length} операций, ${imported.accounts.length} счетов, ${imported.wishlist.items.length} покупок в виш-листе.`)) return;
         if (!persistChanges(imported, true)) return;
         historyLimit = 50;
         expandedGroups.clear();
         document.querySelectorAll('.modal').forEach(modal => modal.style.display = 'none');
+        document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+        window.WishlistUI?.render();
         renderCategories(categorySelect, currentType);
         renderAccountSelects();
         renderRecentColors();
