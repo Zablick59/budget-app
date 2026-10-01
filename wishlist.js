@@ -1,7 +1,11 @@
 // Wishlist categories and purchases never affect account balances or transaction categories.
 window.WishlistUI = (() => {
     const $ = id => document.getElementById(id);
-    const groups = [['wish', '✨', 'Хотелки', 'Сохраните то, что вам понравилось.'], ['candidate', '🤔', 'Кандидаты', 'Варианты, к которым стоит присмотреться.'], ['planned', '🗓️', 'Запланировано', 'Покупки, с которыми вы уже определились.']];
+    const groups = [
+        ['wish', '<path d="m16 4 3.7 7.5 8.3 1.2-6 5.8 1.4 8.3L16 22.9l-7.4 3.9 1.4-8.3-6-5.8 8.3-1.2Z"/>', 'Хотелки', 'Сохраните то, что вам понравилось.'],
+        ['candidate', '<circle cx="13.5" cy="13.5" r="8.5"/><path d="m20 20 7 7"/>', 'Кандидаты', 'Варианты, к которым стоит присмотреться.'],
+        ['planned', '<rect x="5" y="7" width="22" height="21" rx="5"/><path d="M11 4v6M21 4v6M5 14h22m-16 7 3 3 6-6"/>', 'Запланировано', 'Покупки, с которыми вы уже определились.']
+    ];
     const expanded = new Map(groups.map(([id]) => [id, true]));
     const dialog = $('wish-dialog');
     const categoryDialog = $('wish-categories-dialog');
@@ -209,7 +213,7 @@ window.WishlistUI = (() => {
         filter.value = [...filter.options].some(o => o.value === old) ? old : 'all';
         $('wish-groups').innerHTML = groups.map(([status, icon, name, hint]) => {
             const items = wishlist.items.filter(item => item.status === status && (filter.value === 'all' || (filter.value === 'none' ? item.categoryId === null : item.categoryId === filter.value)));
-            return `<details class="wish-group" data-status="${status}"${expanded.get(status) ? ' open' : ''}><summary><span>${icon} ${name}</span><span class="wish-count">${items.length}</span><span class="wish-chevron" aria-hidden="true">⌄</span></summary><div class="wish-group-content">${items.length ? items.map(item => {
+            return `<details class="wish-group" data-status="${status}"${expanded.get(status) ? ' open' : ''}><summary><svg class="wish-section-icon" viewBox="0 0 32 32" aria-hidden="true">${icon}</svg><span>${name}</span><span class="wish-count">${items.length}</span><span class="wish-chevron" aria-hidden="true">⌄</span></summary><div class="wish-group-content">${items.length ? items.map(item => {
                 const cat = wishlist.categories.find(c => c.id === item.categoryId);
                 return `<article class="wish-card" data-id="${escapeHTML(item.id)}"><button type="button" class="wish-card-main" data-edit="${escapeHTML(item.id)}" aria-label="Редактировать: ${escapeHTML(item.name)}"><span class="wish-card-media"${cat ? ` style="background:${getStyleForColor(cat.color).bg}"` : ''}>${media(item, cat)}</span><span class="wish-card-info"><strong>${escapeHTML(item.name)}</strong>${cat ? `<span class="wish-card-category">${escapeHTML(categoryLabel(cat))}</span>` : ''}${item.note ? `<span class="wish-card-note">${escapeHTML(item.note)}</span>` : ''}</span><span class="wish-card-price">${priceHTML(item)}</span></button><div class="wish-card-footer"><select class="wish-card-status" data-move="${escapeHTML(item.id)}" aria-label="Раздел покупки ${escapeHTML(item.name)}">${options(item.status)}</select>${item.link ? `<a class="wish-card-link" href="${escapeHTML(item.link)}" target="_blank" rel="noopener noreferrer">Товар ↗</a>` : ''}<button type="button" class="wish-edit-button" data-edit="${escapeHTML(item.id)}" aria-label="Редактировать ${escapeHTML(item.name)}">✎</button></div></article>`;
             }).join('') : `<div class="wish-empty"><p>${filter.value === 'all' ? hint : 'В этой категории пока нет покупок.'}</p><button type="button" class="wish-text-button" data-add="${status}">＋ Добавить покупку</button></div>`}</div></details>`;

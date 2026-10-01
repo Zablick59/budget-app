@@ -62,8 +62,6 @@
                         <div class="category-flex">
                             <select id="category-select" hidden aria-hidden="true" tabindex="-1"></select>
                             <button type="button" id="category-picker-btn" class="category-picker-trigger" aria-haspopup="dialog" aria-controls="category-picker-modal">Выберите категорию</button>
-                            <button type="button" id="delete-cat-btn" class="icon-btn">🗑️</button>
-                            <button type="button" id="open-category-modal" class="icon-btn">➕</button>
                         </div>
                     </div>
 
@@ -159,14 +157,14 @@
 
     <nav class="bottom-nav">
         <button type="button" class="nav-item active" id="nav-main" onclick="switchView('main')" aria-current="page">
-            <div class="nav-icon">💳</div>
+            <svg class="nav-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M11 11V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v4"/><rect x="4" y="11" width="24" height="17" rx="5"/><path d="M9 19.5h7"/><circle cx="23" cy="19.5" r="1.5" class="nav-dot"/></svg>
             <span>Главная</span>
         </button>
         <button type="button" class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
-            <div class="nav-icon">📊</div>
+            <svg class="nav-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M14 4a12 12 0 1 0 14 14H14Z"/><path d="M19 4v9h9a12 12 0 0 0-9-9Z"/></svg>
             <span>Аналитика</span>
         </button>
-        <button type="button" class="nav-item" id="nav-wishlist" onclick="switchView('wishlist')"><div class="nav-icon">✨</div><span>Виш-лист</span></button>
+        <button type="button" class="nav-item" id="nav-wishlist" onclick="switchView('wishlist')"><svg class="nav-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="4" width="20" height="24" rx="5"/><path d="m11 12 2 2 4-4M11 21h10M20 13h1"/></svg><span>Виш-лист</span></button>
     </nav>
 
     <dialog id="wish-dialog" class="wish-dialog" aria-labelledby="wish-editor-title">
@@ -206,11 +204,13 @@
             <div class="modal-flex-row">
                 <input type="text" id="account-name-input" placeholder="Название счета" style="margin-bottom: 0;">
             </div>
+            <label class="analytics-toggle" for="account-analytics"><span>Учитывать в аналитике</span><input type="checkbox" id="account-analytics" checked aria-describedby="account-analytics-hint"></label>
+            <p class="analytics-toggle-hint" id="account-analytics-hint">Расходы и доходы по этому счёту попадут в статистику. Отключение не меняет баланс и историю.</p>
             <div class="modal-buttons">
                 <button type="button" id="cancel-account-btn" class="btn-secondary">Отмена</button>
-                <button type="button" id="delete-account-btn" class="btn-secondary" style="color: red; display: none;">Удалить</button>
                 <button type="button" id="save-account-btn" class="submit-btn">Сохранить</button>
             </div>
+            <button type="button" id="delete-account-btn" class="account-delete-btn" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg><span>Удалить счёт</span></button>
         </div>
     </div>
 
@@ -221,7 +221,7 @@
             <div id="category-picker-list" class="category-picker-list"></div>
             <div class="modal-buttons">
                 <button type="button" id="close-category-picker" class="btn-secondary">Закрыть</button>
-                <button type="button" id="picker-add-category" class="submit-btn">Новая</button>
+                <button type="button" id="picker-add-category" class="submit-btn"><span aria-hidden="true">＋</span> Новая</button>
             </div>
         </div>
     </div>
@@ -275,6 +275,10 @@
             </div>
 
             <input type="text" id="edit-comment" placeholder="Комментарий...">
+            <div id="edit-analytics-wrap">
+                <label class="analytics-toggle" for="edit-analytics"><span>Учитывать в аналитике</span><input type="checkbox" id="edit-analytics" checked aria-describedby="edit-analytics-hint"></label>
+                <p class="analytics-toggle-hint" id="edit-analytics-hint"></p>
+            </div>
             
             <div class="modal-buttons">
                 <button type="button" id="cancel-edit-btn" class="btn-secondary">Отмена</button>

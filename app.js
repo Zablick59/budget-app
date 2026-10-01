@@ -254,17 +254,6 @@ function renderCategories(selectElement, type) {
     renderHistoryFilter();
 }
 
-document.getElementById('delete-cat-btn').addEventListener('click', () => {
-    const selectedId = categorySelect.value;
-    if (!selectedId || currentType === 'transfer') return;
-    
-    if (confirm('Действительно удалить эту категорию?')) {
-        if (!persistChanges({ categories: { ...categories, [currentType]: categories[currentType].filter(c => c.id !== selectedId) } })) return;
-        renderCategories(categorySelect, currentType);
-        updateUI();
-    }
-});
-
 function getHSLColor(hue) {
     return `hsl(${hue}, 100%, 45%)`;
 }
@@ -321,11 +310,13 @@ window.openAccountModal = function(id = null) {
         const acc = accounts.find(a => a.id === id);
         document.getElementById('account-modal-title').innerText = 'Настройки счета';
         accountNameInput.value = acc.name;
-        deleteAccountBtn.style.display = accounts.length > 1 ? 'block' : 'none';
+        document.getElementById('account-analytics').checked = acc.includeInAnalytics !== false;
+        deleteAccountBtn.hidden = false;
     } else {
         document.getElementById('account-modal-title').innerText = 'Новый счет';
         accountNameInput.value = '';
-        deleteAccountBtn.style.display = 'none';
+        document.getElementById('account-analytics').checked = true;
+        deleteAccountBtn.hidden = true;
     }
     accountModal.style.display = 'flex';
 };
@@ -333,9 +324,11 @@ window.openAccountModal = function(id = null) {
 document.getElementById('cancel-account-btn').addEventListener('click', () => accountModal.style.display = 'none');
 
 document.getElementById('delete-account-btn').addEventListener('click', () => {
-    if (accounts.length <= 1) return;
+    if (!accounts.some(a => a.id === editingAccountId)) return;
     if (confirm('Удалить этот счет? Транзакции останутся в истории, но будут числиться за удаленным счетом.')) {
-        if (!persistChanges({ accounts: accounts.filter(a => a.id !== editingAccountId) })) return;
+        const excluded = accounts.find(a => a.id === editingAccountId)?.includeInAnalytics === false;
+        if (!persistChanges({ accounts: accounts.filter(a => a.id !== editingAccountId),
+            transactions: excluded ? transactions.map(t => t.from === editingAccountId ? { ...t, includeInAnalytics: false } : t) : transactions })) return;
         renderAccountSelects();
         updateUI();
         accountModal.style.display = 'none';
@@ -345,10 +338,11 @@ document.getElementById('delete-account-btn').addEventListener('click', () => {
 document.getElementById('save-account-btn').addEventListener('click', () => {
     const name = accountNameInput.value.trim();
     if (!name) return;
+    const includeInAnalytics = document.getElementById('account-analytics').checked;
     
     const nextAccounts = editingAccountId
-        ? accounts.map(a => a.id === editingAccountId ? { ...a, name } : a)
-        : [...accounts, { id: FinanceData.id('acc'), name, baseBalance: 0 }];
+        ? accounts.map(a => a.id === editingAccountId ? { ...a, name, includeInAnalytics } : a)
+        : [...accounts, { id: FinanceData.id('acc'), name, baseBalance: 0, includeInAnalytics }];
     if (!persistChanges({ accounts: nextAccounts })) return;
     renderAccountSelects();
     updateUI();
@@ -410,6 +404,26 @@ function renderCategoryPicker() {
         edit.textContent = '✎';
         edit.setAttribute('aria-label', `Редактировать категорию «${cat.name}»`);
         edit.onclick = () => openCategoryEditor(categoryPickerType, cat.id, true);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'category-delete-btn';
+        remove.setAttribute('aria-label', `Удалить категорию «${cat.name}»`);
+        remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>';
+        remove.onclick = () => {
+            if (!confirm(`Удалить категорию «${cat.name}»? Операции останутся в истории.`)) return;
+            if (!persistChanges({ categories: { ...categories, [categoryPickerType]: categories[categoryPickerType].filter(c => c.id !== cat.id) } })) return;
+            const previous = editCategorySelect.value;
+            renderCategories(categorySelect, currentType);
+            const editingTransaction = transactions.find(tx => tx.id === editingTxId);
+            if (editingTransaction && editModal.style.display === 'flex') {
+                renderCategories(editCategorySelect, editingTransaction.type);
+                selectHistoricalValue(editCategorySelect, previous, 'Удалённая категория');
+            }
+            syncCategoryButtons();
+            updateUI();
+            renderCategoryPicker();
+            (list.querySelector('button') || document.getElementById('picker-add-category')).focus();
+        };
         let timer = null, held = false, start = null;
         const cancelHold = () => { clearTimeout(timer); timer = null; };
         choose.addEventListener('pointerdown', e => {
@@ -434,7 +448,7 @@ function renderCategoryPicker() {
             syncCategoryButtons();
             closeCategoryPicker();
         };
-        row.append(choose, edit);
+        row.append(choose, edit, remove);
         list.appendChild(row);
     }
     if (!list.children.length) {
@@ -497,7 +511,6 @@ document.getElementById('edit-category-picker-btn').onclick = () => {
 };
 document.getElementById('close-category-picker').onclick = closeCategoryPicker;
 document.getElementById('picker-add-category').onclick = () => openCategoryEditor(categoryPickerType, null, true);
-document.getElementById('open-category-modal').onclick = () => openCategoryEditor(currentType);
 document.getElementById('cancel-cat-btn').onclick = closeCategoryEditor;
 categoryPicker.addEventListener('click', e => { if (e.target === categoryPicker) closeCategoryPicker(); });
 document.addEventListener('keydown', e => {
@@ -604,6 +617,13 @@ function renderAccountsList() {
     const container = document.getElementById('accounts-list');
     container.innerHTML = '';
     const balances = calculateBalances();
+    if (!accounts.length) {
+        const hint = document.createElement('p');
+        hint.className = 'accounts-empty';
+        hint.textContent = 'Добавьте счёт, чтобы записывать новые расходы и доходы.';
+        container.appendChild(hint);
+    }
+    form.querySelector('[type="submit"]').disabled = accounts.length === 0;
     
     accounts.forEach(acc => {
         const bal = balances[acc.id];
@@ -722,11 +742,13 @@ function renderHistory() {
                 ...tx,
                 groupKey: key,
                 count: 1,
+                includedCount: isIncludedInAnalytics(tx) ? 1 : 0,
                 originalIds: [tx.id]
             };
         } else {
             groupedObj[key].amount = (cents(groupedObj[key].amount) + cents(tx.amount)) / 100;
             groupedObj[key].count += 1;
+            groupedObj[key].includedCount += isIncludedInAnalytics(tx) ? 1 : 0;
             groupedObj[key].originalIds.push(tx.id);
         }
     });
@@ -735,7 +757,8 @@ function renderHistory() {
         if (a.date !== b.date) {
             return new Date(b.date) - new Date(a.date);
         }
-        return b.amount - a.amount;
+        // The array is newest-first; stable sorting preserves addition order within a day.
+        return 0;
     });
 
     let currentDateStr = null;
@@ -791,6 +814,11 @@ function renderHistory() {
         } else if (tx.comment) {
             details += ` • ${tx.comment}`;
         }
+        if (tx.type !== 'transfer' && (tx.count === 1
+            ? !isIncludedInAnalytics(tx)
+            : tx.includedCount === 0)) {
+            details += ' • Не в аналитике';
+        }
 
         const styles = getStyleForColor(cat.color);
 
@@ -838,6 +866,10 @@ document.getElementById('analytics-sort').addEventListener('change', updateAnaly
 
 let lastIsSingleCat = null;
 
+function isIncludedInAnalytics(tx) {
+    return tx.includeInAnalytics !== false && accounts.find(a => a.id === tx.from)?.includeInAnalytics !== false;
+}
+
 function updateAnalytics() {
     const catFilterEl = document.getElementById('analytics-cat-filter');
     const sortEl = document.getElementById('analytics-sort');
@@ -846,7 +878,7 @@ function updateAnalytics() {
     catFilterEl.replaceChildren(new Option('Все категории', 'all'));
     const filterCats = [...(categories[analyticsType] || [])];
     const knownIds = new Set(filterCats.map(c => c.id));
-    transactions.filter(t => t.type === analyticsType).forEach(t => {
+    transactions.filter(t => t.type === analyticsType && isIncludedInAnalytics(t)).forEach(t => {
         if (!knownIds.has(t.categoryId)) {
             knownIds.add(t.categoryId);
             filterCats.push({ id: t.categoryId, name: 'Удалённая категория', icon: '❓' });
@@ -872,7 +904,7 @@ function updateAnalytics() {
     const catFilterVal = catFilterEl.value;
     const sortVal = sortEl.value;
 
-    let periodTxs = transactions.filter(t => t.type === analyticsType && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
+    let periodTxs = transactions.filter(t => t.type === analyticsType && isIncludedInAnalytics(t) && isDateInAnalyticsPeriod(t.date, analyticsPeriod));
     
     // Считаем все данные для правильной отрисовки общей диаграммы
     let catSums = Object.create(null);
@@ -1012,6 +1044,14 @@ function selectHistoricalValue(select, value, label) {
     if (![...select.options].some(o => o.value === value)) select.add(new Option(label, value));
     select.value = value;
 }
+function updateEditAnalyticsHint() {
+    const account = accounts.find(a => a.id === document.getElementById('edit-from-account').value);
+    document.getElementById('edit-analytics-hint').textContent = account?.includeInAnalytics === false
+        ? 'Этот счёт исключён из аналитики. Операция не попадёт в статистику, пока учёт счёта выключен.'
+        : 'Отключение не меняет баланс счёта и запись в истории.';
+}
+document.getElementById('edit-from-account').addEventListener('change', updateEditAnalyticsHint);
+
 function openEditModal(id) {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
@@ -1024,6 +1064,9 @@ function openEditModal(id) {
     selectHistoricalValue(document.getElementById('edit-from-account'), tx.from, 'Удалённый счёт');
     if (tx.type === 'transfer') selectHistoricalValue(document.getElementById('edit-to-account'), tx.to, 'Удалённый счёт');
     document.getElementById('edit-comment').value = tx.comment || '';
+    document.getElementById('edit-analytics').checked = tx.includeInAnalytics !== false;
+    document.getElementById('edit-analytics-wrap').hidden = tx.type === 'transfer';
+    updateEditAnalyticsHint();
 
     if (tx.type === 'transfer') {
         document.getElementById('edit-category-wrap').style.display = 'none';
@@ -1057,7 +1100,8 @@ document.getElementById('save-edit-btn').addEventListener('click', () => {
         amount: FinanceData.parseMoney(document.getElementById('edit-amount').value),
         date: document.getElementById('edit-date').value,
         from: document.getElementById('edit-from-account').value,
-        comment: document.getElementById('edit-comment').value
+        comment: document.getElementById('edit-comment').value,
+        includeInAnalytics: original.type === 'transfer' ? original.includeInAnalytics : document.getElementById('edit-analytics').checked
     };
     if (tx.type === 'transfer') tx.to = document.getElementById('edit-to-account').value;
     else tx.categoryId = editCategorySelect.value;

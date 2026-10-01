@@ -486,13 +486,20 @@ input[type="text"], input[type="number"], input[type="date"], select {
 }
 
 .nav-item.active {
-    color: #007aff;
+    color: #249e46;
 }
 
 .nav-icon {
-    font-size: 24px;
+    width: 27px;
+    height: 27px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
     margin-bottom: 4px;
 }
+.nav-dot { fill: currentColor; stroke: none; }
 
 .chart-container {
     position: relative;
@@ -716,7 +723,7 @@ input, select, .form-group, .modal-flex-row > *, .tx-info, .stat-card {
 }
 .category-choice[aria-pressed="true"] { border-color: #007aff; background: #eef5ff; }
 .category-choice-name { overflow-wrap: anywhere; }
-.category-edit-btn {
+.category-edit-btn, .category-delete-btn {
     flex: 0 0 44px;
     height: 44px;
     border: 0;
@@ -726,6 +733,25 @@ input, select, .form-group, .modal-flex-row > *, .tx-info, .stat-card {
     font-size: 25px;
     cursor: pointer;
 }
+.category-delete-btn { color: #d92d3d; display: grid; place-items: center; padding: 0; }
+.category-delete-btn svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 360px) {
+    .category-picker-row { gap: 4px; }
+    .category-choice { padding: 6px; gap: 6px; font-size: 15px; }
+    .category-choice .cat-icon { width: 32px; height: 32px; }
+}
+.analytics-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; margin: 12px 0 4px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.analytics-toggle input { appearance: none; -webkit-appearance: none; flex: 0 0 44px; width: 44px; height: 26px; padding: 3px; margin: 0; border: 0; border-radius: 20px; background: #b8b8be; cursor: pointer; }
+.analytics-toggle input::before { content: ''; display: block; width: 20px; height: 20px; border-radius: 50%; background: white; box-shadow: 0 1px 3px #0002; }
+.analytics-toggle input:checked { background: #249e46; }
+.analytics-toggle input:checked::before { transform: translateX(18px); }
+.analytics-toggle input:focus-visible { outline: 3px solid #007aff; outline-offset: 3px; }
+.analytics-toggle-hint { margin: 0 0 16px; color: #6b6b73; font-size: 12px; line-height: 1.5; }
+.account-delete-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 14px; padding: 10px 14px; border: 1px solid #d92d3d20; border-radius: 10px; background: #fff2f3; color: #d92d3d; font-size: 14px; font-weight: 600; cursor: pointer; }
+.account-delete-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.account-delete-btn:active { background: #ffe4e7; }
+.accounts-empty { padding: 4px 0 18px; color: #6b6b73; font-size: 14px; line-height: 1.5; }
+#transaction-form button[type="submit"]:disabled { opacity: .45; cursor: default; }
 
 /* Wishlist: independent categories, collapsible sections and local photo storage. */
 #wishlist-view [hidden], .wish-dialog [hidden] { display: none !important; }
@@ -740,6 +766,7 @@ input, select, .form-group, .modal-flex-row > *, .tx-info, .stat-card {
 .wish-group { margin-bottom: 22px; }
 .wish-group summary { display: flex; gap: 9px; align-items: center; cursor: pointer; font-size: 16px; font-weight: 700; padding: 8px 2px 14px; list-style: none; }
 .wish-group summary::-webkit-details-marker { display: none; }
+.wish-section-icon { width: 25px; height: 25px; flex: 0 0 25px; color: #249e46; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .wish-count { border-radius: 20px; background: #e5e5ea; min-width: 25px; padding: 4px 7px; font-size: 12px; text-align: center; }
 .wish-chevron { margin-left: auto; color: #8e8e93; transform: rotate(-90deg); transition: transform .18s; }
 .wish-group[open] .wish-chevron { transform: rotate(0); }

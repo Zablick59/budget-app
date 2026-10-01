@@ -34,6 +34,10 @@ const FinanceData = (() => {
         requireValue(Math.abs(value - rounded) < 0.000001 && (!positive || rounded > 0), label + ': нужна положительная сумма с точностью до копейки.');
         return rounded;
     }
+    function analyticsFlag(value) {
+        requireValue(value === undefined || typeof value === 'boolean', 'Некорректная настройка учёта в аналитике.');
+        return value !== false;
+    }
     function normalize(raw) {
         requireValue(isObject(raw), 'Файл должен содержать резервную копию приложения.');
         requireValue(raw.schemaVersion === undefined || raw.schemaVersion === 2, 'Эта версия резервной копии не поддерживается.');
@@ -44,7 +48,7 @@ const FinanceData = (() => {
         if (sourceAccounts === undefined && isObject(raw.baseBalances)) {
             sourceAccounts = [['main', 'Основной'], ['savings', 'Накопительный'], ['grandma', 'Бабушкин']].map(([id, name]) => ({ id, name, baseBalance: raw.baseBalances[id] ?? 0 }));
         }
-        requireValue(Array.isArray(sourceAccounts) && sourceAccounts.length > 0, 'В копии должен быть хотя бы один счёт.');
+        requireValue(Array.isArray(sourceAccounts), 'В копии отсутствует список счетов.');
         const string = (v, label, empty = false) => {
             requireValue(typeof v === 'string' && (empty || v.trim().length > 0), label + ': некорректный текст.');
             return v;
@@ -56,7 +60,8 @@ const FinanceData = (() => {
         };
         const accounts = unique(sourceAccounts.map(a => {
             requireValue(isObject(a), 'Некорректный счёт.');
-            return { id: string(a.id, 'Счёт'), name: string(a.name, 'Название счёта'), baseBalance: numeric(a.baseBalance ?? 0, 'Баланс') };
+            return { id: string(a.id, 'Счёт'), name: string(a.name, 'Название счёта'), baseBalance: numeric(a.baseBalance ?? 0, 'Баланс'),
+                includeInAnalytics: analyticsFlag(a.includeInAnalytics) };
         }), 'Счета');
         const categories = {};
         for (const type of ['expense', 'income']) {
@@ -75,7 +80,7 @@ const FinanceData = (() => {
             return { id: t.id, type: t.type, amount: numeric(t.amount, 'Операция', true), date: t.date,
                 from: string(t.from, 'Счёт операции'), to: t.type === 'transfer' ? string(t.to, 'Счёт получателя') : null,
                 categoryId: t.type === 'transfer' ? null : string(t.categoryId ?? '', 'Категория операции', true),
-                comment: string(t.comment ?? '', 'Комментарий', true) };
+                comment: string(t.comment ?? '', 'Комментарий', true), includeInAnalytics: analyticsFlag(t.includeInAnalytics) };
         }), 'Операции');
         // Deleted accounts/categories are valid historical references; preserve their IDs.
         const magnitude = [...accounts.map(a => Math.abs(cents(a.baseBalance))), ...transactions.map(t => cents(t.amount))].reduce((a, b) => a + b, 0);
